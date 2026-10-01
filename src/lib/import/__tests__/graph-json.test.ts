@@ -1,4 +1,13 @@
-import { describe, expect, it } from "bun:test";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+const expect = (actual: unknown) => ({
+  toBe: (v: unknown) => assert.equal(actual, v),
+  toEqual: (v: unknown) => assert.deepEqual(actual, v),
+  toBeGreaterThan: (v: number) => assert.ok((actual as number) > v),
+  toBeLessThan: (v: number) => assert.ok((actual as number) < v),
+  toThrow: (re: RegExp) => assert.throws(actual as () => void, re),
+});
 
 import { SimulationEngine, makePortKey } from "@/lib/logic-graph/engine";
 import { convertGraphJson, getSampleGraphImport, stripNonEnglish } from "../graph-json";
@@ -33,7 +42,7 @@ describe("graph JSON import", () => {
     expect(items.every((i) => i.advisory)).toBe(true);
   });
 
-  it.each(ORInputs)("forcing %s sets the latch, MFT on, NO BOILER TRIP off", (input) => {
+  for (const input of ORInputs) it(`forcing ${input} sets the latch, MFT on, NO BOILER TRIP off`, () => {
     const { graph } = getSampleGraphImport();
     const engine = new SimulationEngine(graph);
     let s = run(engine, 3);
