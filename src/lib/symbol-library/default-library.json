@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "mappings": [
+    { "id": "m-and", "source": "keyword", "pattern": "AND", "blockType": "AND", "priority": 50 },
+    { "id": "m-or", "source": "keyword", "pattern": "OR", "blockType": "OR", "priority": 50 },
+    { "id": "m-not", "source": "keyword", "pattern": "NOT", "blockType": "NOT", "priority": 50 },
+    { "id": "m-sr", "source": "keyword", "pattern": "SR", "blockType": "SR", "priority": 50 },
+    { "id": "m-ton", "source": "keyword", "pattern": "TON", "blockType": "TON", "priority": 50 },
+    { "id": "m-pid", "source": "keyword", "pattern": "PID", "blockType": "PID", "priority": 50 },
+    { "id": "m-fic", "source": "keyword", "pattern": "FIC", "blockType": "PID", "priority": 40 },
+    { "id": "m-lic", "source": "keyword", "pattern": "LIC", "blockType": "PID", "priority": 40 },
+    { "id": "m-tic", "source": "keyword", "pattern": "TIC", "blockType": "PID", "priority": 40 },
+    { "id": "m-pic", "source": "keyword", "pattern": "PIC", "blockType": "PID", "priority": 40 },
+    { "id": "m-comp", "source": "keyword", "pattern": "COMP", "blockType": "COMP", "priority": 50 },
+    { "id": "m-hs", "source": "keyword", "pattern": "HS", "blockType": "DI", "priority": 30 },
+    { "id": "m-blk-and", "source": "block", "pattern": "AND_GATE", "blockType": "AND", "priority": 80 },
+    { "id": "m-blk-pid", "source": "block", "pattern": "PID_CTRL", "blockType": "PID", "priority": 80 },
+    { "id": "m-lyr-di", "source": "layer", "pattern": "IO-DI", "blockType": "DI", "priority": 60 },
+    { "id": "m-lyr-do", "source": "layer", "pattern": "IO-DO", "blockType": "DO", "priority": 60 },
+    { "id": "m-lyr-ai", "source": "layer", "pattern": "IO-AI", "blockType": "AI", "priority": 60 },
+    { "id": "m-lyr-ao", "source": "layer", "pattern": "IO-AO", "blockType": "AO", "priority": 60 }
+  ]
+}

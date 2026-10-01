@@ -8,3 +8,11 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+# LogicSim workflow rules
+- Design system rules in DESIGN.md apply to every change; never hardcode colors or add gradients/decorative animations.
+- Update PROJECT_NOTES.md (Done / Next) after every change.
+
+- Drawing parsing goes through a single server function `parseDrawing(file)` that reads PARSER_API_URL inside the handler and falls back to a mock graph; keeps the secret server-side and the UI working without a parser.
+
+- Graph JSON imports are converted client-side by `convertGraphJson` in src/lib/import/graph-json.ts into the internal LogicGraph (port ids remapped to engine conventions); needsReview items are advisory so they never block Simulate.
