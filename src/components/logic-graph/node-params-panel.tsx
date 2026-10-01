@@ -3,15 +3,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { LogicNode, LogicParamValue } from "@/lib/logic-graph/types";
+import { cn } from "@/lib/utils";
 
 interface Props {
   node: LogicNode | null;
   onParamChange: (key: string, value: LogicParamValue) => void;
+  className?: string;
 }
 
-export function NodeParamsPanel({ node, onParamChange }: Props) {
+export function NodeParamsPanel({ node, onParamChange, className }: Props) {
   return (
-    <aside className="hidden w-80 shrink-0 flex-col rounded-md border lg:flex">
+    <section className={cn("flex min-h-0 flex-col", className)}>
       <div className="flex h-12 items-center border-b px-4">
         <span className="text-sm font-medium">Node parameters</span>
       </div>
@@ -60,7 +62,7 @@ export function NodeParamsPanel({ node, onParamChange }: Props) {
           })}
         </div>
       )}
-    </aside>
+    </section>
   );
 }
 

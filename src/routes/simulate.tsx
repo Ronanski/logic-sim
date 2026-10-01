@@ -2,16 +2,24 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Background,
-  Controls,
   ReactFlow,
   applyNodeChanges,
   type Edge,
   type NodeChange,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
   Activity,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   Check,
+  Expand,
+  Focus,
+  Gauge,
+  Minimize,
   Pause,
   Play,
   RotateCcw,
@@ -55,6 +63,7 @@ import type { LogicGraph, LogicParamValue } from "@/lib/logic-graph/types";
 import { Link } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
 import { blockingCount, reviewActions, useReview } from "@/lib/review/review-store";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const Route = createFileRoute("/simulate")({
   head: () => ({
@@ -141,6 +150,7 @@ function SimulateGate() {
 
 function SimulatePage() {
   const review = useReview();
+  const isMobile = useIsMobile();
   // A graph loaded from graph JSON is offered first and selected by default.
   const imported = review.graph.id === "json-import" ? structuredClone(review.graph) : null;
   const [graphs, setGraphs] = useState<LogicGraph[]>(() => (imported ? [imported, ...sampleGraphs] : sampleGraphs));
@@ -158,6 +168,12 @@ function SimulatePage() {
   // Trend chart history & signal selection
   const [trendHistory, setTrendHistory] = useState<TrendPoint[]>([]);
   const [selectedChartSignals, setSelectedChartSignals] = useState<string[]>([]);
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+  const [monitorOpen, setMonitorOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const flowInstanceRef = useRef<ReactFlowInstance<LogicFlowNode, Edge> | null>(null);
 
   // Simple physics model for PID sample (tank liquid level)
   const tankLevelRef = useRef<number>(20); // initial 20% level
@@ -254,6 +270,17 @@ function SimulatePage() {
     return () => clearInterval(interval);
   }, [isRunning, executeScanStep]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === workspaceRef.current);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    setLeftDrawerOpen(!isMobile);
+    setRightDrawerOpen(!isMobile);
+  }, [isMobile]);
+
   // Run / Pause / Step / Reset controls
   const handleRun = () => setIsRunning(true);
   const handlePause = () => setIsRunning(false);
@@ -342,6 +369,15 @@ function SimulatePage() {
 
   const reviewCount = graph.nodes.filter((n) => n.needsReview).length;
 
+  const toggleFullscreen = async () => {
+    if (!workspaceRef.current) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    await workspaceRef.current.requestFullscreen();
+  };
+
   // Available input nodes for force toggles
   const inputNodes = graph.nodes.filter(
     (n) => n.type === "DI" || n.type === "AI" || n.tag.endsWith(".SP"),
@@ -360,18 +396,24 @@ function SimulatePage() {
   }, [graph]);
 
   return (
-    <div className="flex h-full flex-col gap-6 p-6 overflow-y-auto">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Simulate</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Run imported control logic and observe signal behavior with active wire tracing and live trends.
-        </p>
-      </div>
-
-      {/* Control Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
+    <div ref={workspaceRef} className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <div className="grid h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b bg-card px-2 sm:flex">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            size="icon"
+            variant={leftDrawerOpen ? "secondary" : "ghost"}
+            className="h-8 w-8 shrink-0"
+            onClick={() => {
+              setLeftDrawerOpen((open) => !open);
+              if (isMobile) setRightDrawerOpen(false);
+            }}
+            aria-label={leftDrawerOpen ? "Close inputs" : "Open inputs"}
+            title={leftDrawerOpen ? "Close inputs" : "Open inputs"}
+          >
+            {leftDrawerOpen ? <ChevronLeft /> : <Sliders />}
+          </Button>
         <Select value={graphId} onValueChange={switchGraph}>
-          <SelectTrigger className="h-8 w-56">
+          <SelectTrigger className="h-8 min-w-0 w-48 sm:w-56">
             <SelectValue placeholder="Select sample" />
           </SelectTrigger>
           <SelectContent>
@@ -383,60 +425,82 @@ function SimulatePage() {
           </SelectContent>
         </Select>
 
-        <Separator orientation="vertical" className="h-6" />
+        </div>
 
-        {isRunning ? (
-          <Button size="sm" variant="secondary" onClick={handlePause}>
-            <Pause className="mr-2 h-4 w-4" />
-            Pause
+        <div className="flex shrink-0 items-center gap-2">
+          <Separator orientation="vertical" className="hidden h-6 sm:block" />
+          {isRunning ? (
+            <Button size="sm" variant="secondary" onClick={handlePause} aria-label="Pause simulation">
+              <Pause /> <span className="hidden md:inline">Pause</span>
+            </Button>
+          ) : (
+            <Button size="sm" onClick={handleRun} aria-label="Run simulation">
+              <Play /> <span className="hidden md:inline">Run</span>
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={handleStep} disabled={isRunning} aria-label="Step simulation">
+            <StepForward /> <span className="hidden md:inline">Step</span>
           </Button>
-        ) : (
-          <Button size="sm" onClick={handleRun}>
-            <Play className="mr-2 h-4 w-4" />
-            Run
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleReset} aria-label="Reset simulation" title="Reset">
+            <RotateCcw />
           </Button>
-        )}
-
-        <Button size="sm" variant="outline" onClick={handleStep} disabled={isRunning}>
-          <StepForward className="mr-2 h-4 w-4" />
-          Step
-        </Button>
-
-        <Button size="sm" variant="outline" onClick={handleReset}>
-          <RotateCcw className="mr-2 h-4 w-4" />
-          Reset
-        </Button>
-
-        <Separator orientation="vertical" className="h-6" />
-
-        <div className="flex items-center gap-2">
+          <Separator orientation="vertical" className="hidden h-6 lg:block" />
+          <div className="hidden items-center gap-2 lg:flex">
           <Badge variant={isRunning ? "default" : "secondary"} className="text-xs">
             {isRunning ? "Running (100ms)" : cycle > 0 ? "Paused" : "Idle"}
           </Badge>
           <span className="text-xs text-muted-foreground">Cycle #{cycle}</span>
+          </div>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => flowInstanceRef.current?.fitView({ padding: 0.16, duration: 150 })} aria-label="Fit view" title="Fit view">
+            <Focus />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+            {isFullscreen ? <Minimize /> : <Expand />}
+          </Button>
+          <Button
+            size="icon"
+            variant={rightDrawerOpen ? "secondary" : "ghost"}
+            className="h-8 w-8"
+            onClick={() => {
+              setRightDrawerOpen((open) => !open);
+              if (isMobile) setLeftDrawerOpen(false);
+            }}
+            aria-label={rightDrawerOpen ? "Close outputs and parameters" : "Open outputs and parameters"}
+            title={rightDrawerOpen ? "Close outputs and parameters" : "Open outputs and parameters"}
+          >
+            {rightDrawerOpen ? <ChevronRight /> : <Gauge />}
+          </Button>
         </div>
-
-        {warnings.length > 0 && (
-          <Badge variant="destructive" className="text-xs">
-            Feedback loop detected
-          </Badge>
-        )}
-
-        <Badge variant="secondary" className="ml-auto text-xs">
-          {graph.nodes.length} nodes · {reviewCount} need review
-        </Badge>
       </div>
 
-      {/* Interactive Input Force Panel */}
-      {inputNodes.length > 0 && (
-        <Card className="p-4 bg-card/60">
-          <div className="flex items-center gap-2 mb-3">
+      <div className="relative min-h-0 flex-1" style={flowTheme}>
+        <ReactFlow
+          key={graphId}
+          nodes={flowNodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onInit={(instance) => { flowInstanceRef.current = instance; }}
+          onNodesChange={onNodesChange}
+          onNodeClick={(_, n) => { setSelectedId(n.id); setRightDrawerOpen(true); if (isMobile) setLeftDrawerOpen(false); }}
+          onPaneClick={() => setSelectedId(null)}
+          nodesConnectable={false}
+          colorMode="dark"
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background gap={16} />
+        </ReactFlow>
+
+        <aside className={`absolute inset-y-0 left-0 z-10 flex w-72 max-w-[calc(100%-3rem)] flex-col border-r bg-card transition-transform duration-150 ${leftDrawerOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="grid h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b px-4">
+            <div className="flex min-w-0 items-center gap-2">
             <Sliders className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-              Input Force & Overrides
-            </span>
+              <span className="truncate text-xs font-semibold uppercase text-muted-foreground">Inputs & overrides</span>
+            </div>
+            <Badge variant="secondary" className="text-xs">{inputNodes.length}</Badge>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
+            {inputNodes.length === 0 && <p className="p-4 text-center text-xs text-muted-foreground">No forceable inputs.</p>}
             {inputNodes.map((n) => {
               if (n.type === "DI") {
                 const key = makePortKey(n.id, "out");
@@ -444,7 +508,7 @@ function SimulatePage() {
                 return (
                   <div
                     key={n.id}
-                    className="flex items-center justify-between rounded-md border p-2 bg-card"
+                    className="flex items-center justify-between rounded-md border bg-background p-2"
                   >
                     <div className="flex flex-col">
                       <span className="text-xs font-medium">{n.tag}</span>
@@ -469,7 +533,7 @@ function SimulatePage() {
                 return (
                   <div
                     key={n.id}
-                    className="flex flex-col gap-2 rounded-md border p-2 bg-card col-span-1 sm:col-span-2"
+                    className="flex flex-col gap-2 rounded-md border bg-background p-2"
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium">{n.tag}</span>
@@ -500,20 +564,29 @@ function SimulatePage() {
               return null;
             })}
           </div>
-        </Card>
-      )}
+        </aside>
 
-      {outputLamps.length > 0 && (
-        <Card className="p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outputs</span>
+        <aside className={`absolute inset-y-0 right-0 z-10 flex w-80 max-w-[calc(100%-3rem)] flex-col border-l bg-card transition-transform duration-150 ${rightDrawerOpen ? "translate-x-0" : "translate-x-full"}`}>
+          <div className="grid h-12 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b px-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              <span className="truncate text-xs font-semibold uppercase text-muted-foreground">Outputs & parameters</span>
+            </div>
+            <Badge variant="secondary" className="text-xs">{graph.nodes.length} nodes</Badge>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {warnings.length > 0 && <div className="border-b p-2"><Badge variant="destructive" className="text-xs">Feedback loop detected</Badge></div>}
+            <section className="border-b p-2">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium">Outputs</span>
+                <span className="text-xs text-muted-foreground">{outputLamps.length}</span>
+              </div>
+              {outputLamps.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">No output lamps in this graph.</p>}
+              <div className="flex flex-col gap-2">
             {outputLamps.map((n) => {
               const on = Boolean(signals[makePortKey(n.id, "out")]);
               return (
-                <div key={n.id} data-testid={`lamp-${n.id}`} data-on={on} className="flex items-center justify-between gap-2 rounded-md border bg-card p-2">
+                <div key={n.id} data-testid={`lamp-${n.id}`} data-on={on} className="flex items-center justify-between gap-2 rounded-md border bg-background p-2">
                   <div className="flex flex-col">
                     <span className="text-xs font-medium">{n.tag}</span>
                     {n.params.description !== undefined && n.params.description !== n.tag && (
@@ -524,50 +597,32 @@ function SimulatePage() {
                 </div>
               );
             })}
+              </div>
+            </section>
+            <NodeParamsPanel node={selectedNode} onParamChange={updateParam} />
           </div>
-        </Card>
-      )}
+        </aside>
 
-      {/* Main Graph Canvas and Params Inspector */}
-      <div className="flex min-h-[420px] flex-1 gap-6">
-        <div className="min-h-96 flex-1 overflow-hidden rounded-md border" style={flowTheme}>
-          <ReactFlow
-            key={graphId}
-            nodes={flowNodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onNodeClick={(_, n) => setSelectedId(n.id)}
-            onPaneClick={() => setSelectedId(null)}
-            nodesConnectable={false}
-            colorMode="dark"
-            fitView
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background gap={16} />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-        </div>
-
-        <NodeParamsPanel node={selectedNode} onParamChange={updateParam} />
-      </div>
-
-      {/* Live Trend Chart (Recharts) */}
-      <Card className="rounded-md border bg-card">
-        <CardHeader className="p-4 pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <section className={`absolute inset-x-0 bottom-0 z-20 flex flex-col border-t bg-card transition-transform duration-150 ${monitorOpen ? "h-72 translate-y-0" : "h-72 translate-y-[calc(100%-3rem)]"}`}>
+          <div className="grid h-12 shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4" onClick={() => setMonitorOpen((open) => !open)}>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" />
-              <CardTitle className="text-sm font-semibold">Live Signal Monitor & Trends</CardTitle>
+              <span className="truncate text-sm font-semibold">Live Signal Monitor</span>
+              <span className="hidden text-xs text-muted-foreground sm:inline">{selectedChartSignals.length} traces · {trendHistory.length} samples</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={monitorOpen ? "Close signal monitor" : "Open signal monitor"} title={monitorOpen ? "Close signal monitor" : "Open signal monitor"} onClick={(event) => { event.stopPropagation(); setMonitorOpen((open) => !open); }}>
+              {monitorOpen ? <ChevronDown /> : <ChevronUp />}
+            </Button>
+          </div>
+          <div className="grid min-h-0 flex-1 grid-cols-1 border-t lg:grid-cols-[18rem_minmax(0,1fr)]">
+            <div className="flex content-start flex-wrap gap-2 overflow-y-auto border-b p-2 lg:border-b-0 lg:border-r">
               {availableSignals.slice(0, 6).map((sig) => {
                 const isSelected = selectedChartSignals.includes(sig);
                 return (
                   <Badge
                     key={sig}
                     variant={isSelected ? "default" : "outline"}
-                    className="cursor-pointer text-xs"
+                    className="h-6 cursor-pointer text-xs"
                     onClick={() => {
                       setSelectedChartSignals((prev) =>
                         isSelected ? prev.filter((s) => s !== sig) : [...prev, sig],
@@ -580,15 +635,13 @@ function SimulatePage() {
                 );
               })}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 pt-2">
+            <div className="min-h-0 p-2">
           {trendHistory.length === 0 ? (
-            <div className="flex h-44 items-center justify-center text-xs text-muted-foreground border border-dashed rounded-md">
+                <div className="flex h-full items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
               Start or step the simulation to observe live signals.
             </div>
           ) : (
-            <div className="h-48 w-full">
+                <div className="h-full w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendHistory} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -631,8 +684,16 @@ function SimulatePage() {
               </ResponsiveContainer>
             </div>
           )}
-        </CardContent>
-      </Card>
+            </div>
+          </div>
+        </section>
+
+        <div className="pointer-events-none absolute bottom-14 left-1/2 z-10 -translate-x-1/2">
+          <Badge variant={isRunning ? "default" : "secondary"} className="text-xs">
+            {isRunning ? "Running" : cycle > 0 ? "Paused" : "Idle"} · Cycle {cycle} · {reviewCount} review
+          </Badge>
+        </div>
+      </div>
     </div>
   );
 }

@@ -35,6 +35,7 @@ Update this file after every change.
   - Left-to-right layout (inputs, gates by depth, outputs); needsReview nodes show a warning icon and are listed in Review with type and parameter editing; they never block Simulate
   - Sample DITL-03A is the default graph; Simulate shows an Outputs lamp panel for imported graphs
   - Tests (`src/lib/import/__tests__/graph-json.test.ts`): each of the 18 OR inputs sets the latch, turns MFT outputs on and NO BOILER TRIP COMMAND off
+- [x] 2026-10-01 — Simulate redesigned as a full-viewport canvas workspace with collapsible input, output/parameter, and signal-monitor drawers plus fit-view and fullscreen controls
 
 ## Next
 - [ ] Connect a real drawing parser (set PARSER_API_URL; expects JSON `{ graph, items }`)

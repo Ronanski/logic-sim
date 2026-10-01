@@ -16,3 +16,4 @@
 - Drawing parsing goes through a single server function `parseDrawing(file)` that reads PARSER_API_URL inside the handler and falls back to a mock graph; keeps the secret server-side and the UI working without a parser.
 
 - Graph JSON imports are converted client-side by `convertGraphJson` in src/lib/import/graph-json.ts into the internal LogicGraph (port ids remapped to engine conventions); needsReview items are advisory so they never block Simulate.
+- Keep Simulate canvas-first: controls belong in the slim toolbar and inspectors belong in overlay drawers so the graph retains the full workspace.
