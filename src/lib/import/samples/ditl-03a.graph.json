@@ -1,0 +1,1088 @@
+{
+  "nodes": [
+    {
+      "id": "OR-1",
+      "tag": "OR",
+      "type": "OR",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "I2",
+          "dir": "in"
+        },
+        {
+          "id": "I3",
+          "dir": "in"
+        },
+        {
+          "id": "I4",
+          "dir": "in"
+        },
+        {
+          "id": "I5",
+          "dir": "in"
+        },
+        {
+          "id": "I6",
+          "dir": "in"
+        },
+        {
+          "id": "I7",
+          "dir": "in"
+        },
+        {
+          "id": "I8",
+          "dir": "in"
+        },
+        {
+          "id": "I9",
+          "dir": "in"
+        },
+        {
+          "id": "I10",
+          "dir": "in"
+        },
+        {
+          "id": "I11",
+          "dir": "in"
+        },
+        {
+          "id": "I12",
+          "dir": "in"
+        },
+        {
+          "id": "I13",
+          "dir": "in"
+        },
+        {
+          "id": "I14",
+          "dir": "in"
+        },
+        {
+          "id": "I15",
+          "dir": "in"
+        },
+        {
+          "id": "I16",
+          "dir": "in"
+        },
+        {
+          "id": "I17",
+          "dir": "in"
+        },
+        {
+          "id": "I18",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03B-55",
+      "tag": "03B-55",
+      "type": "signal",
+      "params": {
+        "description": "IDF STOPPED",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03B-61",
+      "tag": "03B-61",
+      "type": "signal",
+      "params": {
+        "description": "SAF STOPPED",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03B-67",
+      "tag": "03B-67",
+      "type": "signal",
+      "params": {
+        "description": "ALL FAB STOPPED",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03B-75",
+      "tag": "03B-75",
+      "type": "signal",
+      "params": {
+        "description": "PAF STOPPED",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03C-55",
+      "tag": "03C-55",
+      "type": "signal",
+      "params": {
+        "description": "TOTAL AIR FLOW < 25% MCR",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03C-76",
+      "tag": "03C-76",
+      "type": "signal",
+      "params": {
+        "description": "FURNACE PRESSURE H.H.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03D-61",
+      "tag": "03D-61",
+      "type": "signal",
+      "params": {
+        "description": "FURNACE PRESSURE L.L.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03E-60",
+      "tag": "03E-60",
+      "type": "signal",
+      "params": {
+        "description": "DRUM LEVEL H.H.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03E-71",
+      "tag": "03E-71",
+      "type": "signal",
+      "params": {
+        "description": "DRUM LEVEL L.L.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03F-56",
+      "tag": "03F-56",
+      "type": "signal",
+      "params": {
+        "description": "LOSS OF ALL FUEL",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03F-61",
+      "tag": "03F-61",
+      "type": "signal",
+      "params": {
+        "description": "PRIMARY AIR FLOW L.L.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03F-67",
+      "tag": "03F-67",
+      "type": "signal",
+      "params": {
+        "description": "FURNACE TEMP. INADEQUATE FOR COAL FIRING",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03F-71",
+      "tag": "03F-71",
+      "type": "signal",
+      "params": {
+        "description": "BOILER EMERGENCY TRIP P.B. ON (CRT)",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03F-77",
+      "tag": "03F-77",
+      "type": "signal",
+      "params": {
+        "description": "BOILER EMERGENCY TRIP P.B. ON (OPC)",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03G-61",
+      "tag": "03G-61",
+      "type": "signal",
+      "params": {
+        "description": "INSTRUMENT AIR PRESSURE L.L.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03H-67",
+      "tag": "03H-67",
+      "type": "signal",
+      "params": {
+        "description": "CYCLONE OUTLET GAS TEMP. H.H. (NO REHEATER STEAM)",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03H-61",
+      "tag": "03H-61",
+      "type": "signal",
+      "params": {
+        "description": "REHEATER OUTLET HEADER TEMP. H.H.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03H-54",
+      "tag": "03H-54",
+      "type": "signal",
+      "params": {
+        "description": "TURBINE TRIP",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "NOT-1",
+      "tag": "NOT",
+      "type": "NOT",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "NOT-2",
+      "tag": "NOT",
+      "type": "NOT",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "OUT-NOBOILERTRIP",
+      "tag": "NO BOILER TRIP COMMAND",
+      "type": "signal",
+      "params": {
+        "description": "NO BOILER TRIP COMMAND",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-02-65",
+      "tag": "02-65",
+      "type": "signal",
+      "params": {
+        "description": "BOILER PURGE COMPLETED",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "TIMER-TR254",
+      "tag": "TR254",
+      "type": "TIMER",
+      "params": {
+        "kind": "pulse",
+        "durationSec": 1,
+        "address": "O.0600"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 0.5,
+      "needsReview": true
+    },
+    {
+      "id": "AND-1",
+      "tag": "AND",
+      "type": "AND",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "I2",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "SR-1",
+      "tag": "SR",
+      "type": "SR_LATCH",
+      "params": {},
+      "ports": [
+        {
+          "id": "S",
+          "dir": "in"
+        },
+        {
+          "id": "R",
+          "dir": "in"
+        },
+        {
+          "id": "Q",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "OUT-MFT2",
+      "tag": "MFT 2",
+      "type": "signal",
+      "params": {
+        "description": "MFT 2",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "OUT-MFT1",
+      "tag": "MFT 1",
+      "type": "signal",
+      "params": {
+        "description": "MFT 1",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "OUT-MFT-A",
+      "tag": "MFT",
+      "type": "signal",
+      "params": {
+        "description": "MFT",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": true
+    },
+    {
+      "id": "OUT-MFT-B",
+      "tag": "MFT",
+      "type": "signal",
+      "params": {
+        "description": "MFT",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": true
+    },
+    {
+      "id": "OUT-MASTER",
+      "tag": "MASTER FUEL TRIP (MFT)",
+      "type": "signal",
+      "params": {
+        "description": "MASTER FUEL TRIP (MFT)",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03H-64",
+      "tag": "03H-64",
+      "type": "signal",
+      "params": {
+        "description": "CYCLONE OUTLET GAS TEMP. H.H. (NO REHEATER STEAM)",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "IN-03H-58",
+      "tag": "03H-58",
+      "type": "signal",
+      "params": {
+        "description": "REHEATER OUTLET HEADER TEMP. H.H.",
+        "role": "input"
+      },
+      "ports": [
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "NOT-3",
+      "tag": "NOT",
+      "type": "NOT",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "NOT-4",
+      "tag": "NOT",
+      "type": "NOT",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "AND-2",
+      "tag": "AND",
+      "type": "AND",
+      "params": {},
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        },
+        {
+          "id": "I2",
+          "dir": "in"
+        },
+        {
+          "id": "O1",
+          "dir": "out"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    },
+    {
+      "id": "OUT-PERMISSIVE",
+      "tag": "FURNACE PURGE PERMISSIVE",
+      "type": "signal",
+      "params": {
+        "description": "FURNACE PURGE PERMISSIVE",
+        "role": "output"
+      },
+      "ports": [
+        {
+          "id": "I1",
+          "dir": "in"
+        }
+      ],
+      "confidence": 1.0,
+      "needsReview": false
+    }
+  ],
+  "edges": [
+    {
+      "from": {
+        "node": "IN-03B-55",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03B-61",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I2"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03B-67",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I3"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03B-75",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I4"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03C-55",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I5"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03C-76",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I6"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03D-61",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I7"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03E-60",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I8"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03E-71",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I9"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03F-56",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I10"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03F-61",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I11"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03F-67",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I12"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03F-71",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I13"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03F-77",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I14"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03G-61",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I15"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03H-67",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I16"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03H-61",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I17"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03H-54",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OR-1",
+        "port": "I18"
+      }
+    },
+    {
+      "from": {
+        "node": "OR-1",
+        "port": "O1"
+      },
+      "to": {
+        "node": "NOT-1",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "OR-1",
+        "port": "O1"
+      },
+      "to": {
+        "node": "NOT-2",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "NOT-1",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OUT-NOBOILERTRIP",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-02-65",
+        "port": "O1"
+      },
+      "to": {
+        "node": "TIMER-TR254",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "NOT-2",
+        "port": "O1"
+      },
+      "to": {
+        "node": "AND-1",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "TIMER-TR254",
+        "port": "O1"
+      },
+      "to": {
+        "node": "AND-1",
+        "port": "I2"
+      }
+    },
+    {
+      "from": {
+        "node": "OR-1",
+        "port": "O1"
+      },
+      "to": {
+        "node": "SR-1",
+        "port": "S"
+      }
+    },
+    {
+      "from": {
+        "node": "AND-1",
+        "port": "O1"
+      },
+      "to": {
+        "node": "SR-1",
+        "port": "R"
+      }
+    },
+    {
+      "from": {
+        "node": "SR-1",
+        "port": "Q"
+      },
+      "to": {
+        "node": "OUT-MFT2",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "SR-1",
+        "port": "Q"
+      },
+      "to": {
+        "node": "OUT-MFT1",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "SR-1",
+        "port": "Q"
+      },
+      "to": {
+        "node": "OUT-MFT-A",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "SR-1",
+        "port": "Q"
+      },
+      "to": {
+        "node": "OUT-MFT-B",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "SR-1",
+        "port": "Q"
+      },
+      "to": {
+        "node": "OUT-MASTER",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03H-64",
+        "port": "O1"
+      },
+      "to": {
+        "node": "NOT-3",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "IN-03H-58",
+        "port": "O1"
+      },
+      "to": {
+        "node": "NOT-4",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "NOT-3",
+        "port": "O1"
+      },
+      "to": {
+        "node": "AND-2",
+        "port": "I1"
+      }
+    },
+    {
+      "from": {
+        "node": "NOT-4",
+        "port": "O1"
+      },
+      "to": {
+        "node": "AND-2",
+        "port": "I2"
+      }
+    },
+    {
+      "from": {
+        "node": "AND-2",
+        "port": "O1"
+      },
+      "to": {
+        "node": "OUT-PERMISSIVE",
+        "port": "I1"
+      }
+    }
+  ]
+}
