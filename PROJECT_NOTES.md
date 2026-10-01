@@ -29,6 +29,12 @@ Update this file after every change.
 - [x] 2026-10-01 — Server: interrupted page loads (browser closed the connection) are no longer reported as crashes
 - [x] 2026-10-01 — Review queue (`src/lib/review/review-store.ts`, `/review`): mock import with flagged nodes/edges (unknown symbol, floating line, ambiguous text), list + canvas highlight, approve / reassign type / delete, remaining count; Simulate blocked while items are open, with override
 - [x] 2026-10-01 — Import screen: drag-and-drop / file picker for .dxf, .dwg, .pdf (20 MB limit, clear errors), status steps (uploading, converting, parsing, done, failed); `parseDrawing(file)` posts to `PARSER_API_URL` or returns a mock graph when unset; result loads into Review
+- [x] 2026-10-01 — Import: "Load graph JSON" (upload .json or paste) for `{nodes, edges}` graphs (`src/lib/import/graph-json.ts`):
+  - AND/OR/NOT kept; SR_LATCH -> SR latch (S, R -> Q); TIMER -> TP pulse timer with editable `durationSec`; signal role input -> forceable input toggle, role output -> lamp
+  - Labels show tag + description only; CJK / non-English characters are stripped
+  - Left-to-right layout (inputs, gates by depth, outputs); needsReview nodes show a warning icon and are listed in Review with type and parameter editing; they never block Simulate
+  - Sample DITL-03A is the default graph; Simulate shows an Outputs lamp panel for imported graphs
+  - Tests (`src/lib/import/__tests__/graph-json.test.ts`): each of the 18 OR inputs sets the latch, turns MFT outputs on and NO BOILER TRIP COMMAND off
 
 ## Next
 - [ ] Connect a real drawing parser (set PARSER_API_URL; expects JSON `{ graph, items }`)
