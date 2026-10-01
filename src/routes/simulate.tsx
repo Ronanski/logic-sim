@@ -503,6 +503,31 @@ function SimulatePage() {
         </Card>
       )}
 
+      {outputLamps.length > 0 && (
+        <Card className="p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outputs</span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {outputLamps.map((n) => {
+              const on = Boolean(signals[makePortKey(n.id, "out")]);
+              return (
+                <div key={n.id} data-testid={`lamp-${n.id}`} data-on={on} className="flex items-center justify-between gap-2 rounded-md border bg-card p-2">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium">{n.tag}</span>
+                    {n.params.description !== undefined && n.params.description !== n.tag && (
+                      <span className="text-[10px] text-muted-foreground">{String(n.params.description)}</span>
+                    )}
+                  </div>
+                  <span className={on ? "h-4 w-4 rounded-full bg-primary" : "h-4 w-4 rounded-full border bg-muted"} aria-label={on ? "On" : "Off"} />
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {/* Main Graph Canvas and Params Inspector */}
       <div className="flex min-h-[420px] flex-1 gap-6">
         <div className="min-h-96 flex-1 overflow-hidden rounded-md border" style={flowTheme}>

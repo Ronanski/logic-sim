@@ -21,11 +21,19 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
       )}
     >
       <div className="flex h-8 items-center justify-between gap-2 border-b px-2">
-        <span className="truncate text-xs font-semibold">{node.tag}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
+          <span className="truncate text-xs font-semibold">{node.tag}</span>
+        </span>
         <Badge variant="secondary" className="h-4 px-2 text-[10px]">
           {node.type}
         </Badge>
       </div>
+      {typeof node.params.description === "string" && node.params.description && node.params.description !== node.tag && (
+        <div className="truncate border-b px-2 py-2 text-[10px] text-muted-foreground" title={node.params.description}>
+          {node.params.description}
+        </div>
+      )}
       <div className="relative px-2" style={{ height: rows * ROW + 8 }}>
         {node.inputs.map((p, i) => (
           <div key={p.id}>
