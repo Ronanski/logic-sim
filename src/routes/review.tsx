@@ -13,7 +13,11 @@ import { Separator } from "@/components/ui/separator";
 import { LogicNodeView, type LogicFlowNode } from "@/components/logic-graph/logic-node";
 import { cn } from "@/lib/utils";
 import type { LogicNodeType } from "@/lib/logic-graph/types";
-import { openCount, reasonLabel, reviewActions, useReview } from "@/lib/review/review-store";
+import { blockingCount, openCount, reasonLabel, reviewActions, useReview } from "@/lib/review/review-store";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/review")({
   head: () => ({
@@ -30,7 +34,7 @@ export const Route = createFileRoute("/review")({
 });
 
 const nodeTypes = { logic: LogicNodeView };
-const blockTypes: LogicNodeType[] = ["DI", "DO", "AI", "AO", "AND", "OR", "NOT", "SR", "TON", "COMP", "PID"];
+const blockTypes: LogicNodeType[] = ["DI", "DO", "AI", "AO", "AND", "OR", "NOT", "SR", "TON", "TP", "COMP", "PID"];
 
 const flowTheme = {
   "--xy-background-color": "var(--background)",
@@ -95,7 +99,7 @@ function ReviewPage() {
           <Button variant="outline" size="sm" onClick={() => { reviewActions.reset(); setSelectedId(null); }}>
             <RotateCcw className="h-4 w-4" /> Reset
           </Button>
-          <Button size="sm" asChild disabled={remaining > 0 && !review.override}>
+          <Button size="sm" asChild disabled={blockingCount(review) > 0 && !review.override}>
             <Link to="/simulate">Go to Simulate</Link>
           </Button>
         </div>
@@ -124,7 +128,10 @@ function ReviewPage() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{target ?? item.targetId}</span>
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        {item.advisory && <AlertTriangle className="h-4 w-4 text-primary" />}
+                        {target ?? item.targetId}
+                      </span>
                       <Badge variant={item.status === "open" ? "outline" : "secondary"} className="text-[10px]">
                         {item.status === "open" ? reasonLabel[item.reason] : item.status}
                       </Badge>
@@ -146,6 +153,40 @@ function ReviewPage() {
                       {blockTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                )}
+                {selectedNode && selected.advisory && (
+                  <div className="flex flex-col gap-2">
+                    {Object.entries(selectedNode.params)
+                      .filter(([k]) => k !== "role")
+                      .map(([key, value]) => {
+                        const id = `rv-param-${selectedNode.id}-${key}`;
+                        if (typeof value === "boolean") {
+                          return (
+                            <div key={key} className="flex items-center justify-between gap-2">
+                              <Label htmlFor={id}>{key}</Label>
+                              <Switch id={id} checked={value} onCheckedChange={(v) => reviewActions.setParam(selectedNode.id, key, v)} />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={key} className="flex flex-col gap-2">
+                            <Label htmlFor={id}>{key === "durationSec" ? "Duration (s)" : key}</Label>
+                            <Input
+                              id={id}
+                              type={typeof value === "number" ? "number" : "text"}
+                              value={String(value)}
+                              onChange={(e) =>
+                                reviewActions.setParam(
+                                  selectedNode.id,
+                                  key,
+                                  typeof value === "number" ? Number(e.target.value) || 0 : e.target.value,
+                                )
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                  </div>
                 )}
                 <div className="flex gap-2">
                   <Button size="sm" className="flex-1" onClick={() => reviewActions.approve(selected.id)}>

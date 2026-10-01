@@ -54,7 +54,7 @@ import { defaultGraph, sampleGraphs } from "@/lib/logic-graph/samples";
 import type { LogicGraph, LogicParamValue } from "@/lib/logic-graph/types";
 import { Link } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
-import { openCount, reviewActions, useReview } from "@/lib/review/review-store";
+import { blockingCount, reviewActions, useReview } from "@/lib/review/review-store";
 
 export const Route = createFileRoute("/simulate")({
   head: () => ({
@@ -103,7 +103,7 @@ interface TrendPoint {
 
 function SimulateGate() {
   const review = useReview();
-  const remaining = openCount(review);
+  const remaining = blockingCount(review);
   if (remaining > 0 && !review.override) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -140,10 +140,13 @@ function SimulateGate() {
 }
 
 function SimulatePage() {
-  const [graphs, setGraphs] = useState<LogicGraph[]>(sampleGraphs);
-  const [graphId, setGraphId] = useState(defaultGraph.id);
+  const review = useReview();
+  // A graph loaded from graph JSON is offered first and selected by default.
+  const imported = review.graph.id === "json-import" ? structuredClone(review.graph) : null;
+  const [graphs, setGraphs] = useState<LogicGraph[]>(() => (imported ? [imported, ...sampleGraphs] : sampleGraphs));
+  const [graphId, setGraphId] = useState(imported?.id ?? defaultGraph.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [flowNodes, setFlowNodes] = useState<LogicFlowNode[]>(() => toFlowNodes(defaultGraph));
+  const [flowNodes, setFlowNodes] = useState<LogicFlowNode[]>(() => toFlowNodes(imported ?? defaultGraph));
 
   // Simulation execution state
   const [isRunning, setIsRunning] = useState(false);
@@ -160,6 +163,7 @@ function SimulatePage() {
   const tankLevelRef = useRef<number>(20); // initial 20% level
 
   const graph = graphs.find((g) => g.id === graphId) ?? defaultGraph;
+  const outputLamps = graph.id === "json-import" ? graph.nodes.filter((n) => n.type === "DO") : [];
   const selectedNode = graph.nodes.find((n) => n.id === selectedId) ?? null;
 
   // Initialize engine instance

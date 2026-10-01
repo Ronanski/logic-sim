@@ -1,12 +1,14 @@
 import { useRef, useState, type DragEvent } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { AlertCircle, CheckCircle2, FileUp, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileJson, FileUp, Loader2 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { SAMPLE_GRAPH_JSON, convertGraphJson } from "@/lib/import/graph-json";
 import { ALLOWED_EXTENSIONS, MAX_FILE_BYTES, parseDrawing } from "@/lib/import/parse-drawing.functions";
 import { reviewActions } from "@/lib/review/review-store";
 
@@ -148,6 +150,8 @@ function ImportPage() {
         />
       </div>
 
+      <GraphJsonCard />
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -194,5 +198,89 @@ function ImportPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+const MAX_JSON_BYTES = 5 * 1048576;
+
+function GraphJsonCard() {
+  const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState(SAMPLE_GRAPH_JSON);
+  const [name, setName] = useState("DITL-03A (graph JSON)");
+  const [error, setError] = useState<string | null>(null);
+
+  function load(source: string, label: string) {
+    try {
+      const result = convertGraphJson(source, label);
+      setError(null);
+      reviewActions.loadImport(result.graph, result.items);
+      navigate({ to: "/review" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read the graph JSON.");
+    }
+  }
+
+  async function onFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    if (file.size > MAX_JSON_BYTES) {
+      setError(`"${file.name}" is larger than 5 MB.`);
+      return;
+    }
+    const content = await file.text();
+    setText(content);
+    setName(file.name);
+    load(content, file.name);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <FileJson className="h-4 w-4 text-muted-foreground" /> Load graph JSON
+        </CardTitle>
+        <Button size="sm" variant="outline" type="button" onClick={() => fileRef.current?.click()}>
+          Upload .json
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={(e) => {
+            void onFile(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground">
+          Upload a file or paste JSON with nodes and edges. The sample graph DITL-03A is loaded below.
+        </p>
+        <Textarea
+          aria-label="Graph JSON"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setName("Pasted graph JSON");
+          }}
+          className="h-48 font-mono text-xs"
+          spellCheck={false}
+        />
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Graph JSON not loaded</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="flex justify-end">
+          <Button size="sm" type="button" onClick={() => load(text, name)} disabled={!text.trim()}>
+            Load graph
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
