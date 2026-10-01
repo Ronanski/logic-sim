@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
-import type { LogicEdge, LogicGraph, LogicNodeType, LogicPort } from "@/lib/logic-graph/types";
+import type { LogicEdge, LogicGraph, LogicNodeType, LogicParamValue, LogicPort } from "@/lib/logic-graph/types";
+import { getSampleGraphImport, stripNonEnglish } from "@/lib/import/graph-json";
 
-export type ReviewReason = "unknown-symbol" | "floating-line" | "ambiguous-text";
+export type ReviewReason = "unknown-symbol" | "floating-line" | "ambiguous-text" | "needs-review";
 
 export interface ReviewItem {
   id: string;
@@ -10,12 +11,15 @@ export interface ReviewItem {
   reason: ReviewReason;
   detail: string;
   status: "open" | "approved" | "deleted";
+  /** Advisory items (graph JSON needsReview) are listed but never block Simulate. */
+  advisory?: boolean;
 }
 
 export const reasonLabel: Record<ReviewReason, string> = {
   "unknown-symbol": "Unknown symbol",
   "floating-line": "Floating line",
   "ambiguous-text": "Ambiguous text",
+  "needs-review": "Needs review",
 };
 
 const b = (id: string, name = id): LogicPort => ({ id, name, dataType: "bool" });
@@ -69,7 +73,8 @@ interface ReviewState {
   override: boolean;
 }
 
-let state: ReviewState = { graph: mockGraph, items: initialItems, override: false };
+const sampleImport = getSampleGraphImport();
+let state: ReviewState = { graph: sampleImport.graph, items: sampleImport.items, override: false };
 const listeners = new Set<() => void>();
 const set = (next: ReviewState) => {
   state = next;
@@ -85,6 +90,8 @@ export function useReview() {
 }
 
 export const openCount = (s: ReviewState) => s.items.filter((i) => i.status === "open").length;
+/** Open items that block Simulate (advisory items never block). */
+export const blockingCount = (s: ReviewState) => s.items.filter((i) => i.status === "open" && !i.advisory).length;
 
 function markNode(graph: LogicGraph, nodeId: string, patch: Partial<LogicGraph["nodes"][number]>) {
   return { ...graph, nodes: graph.nodes.map((n) => (n.id === nodeId ? { ...n, ...patch } : n)) };
@@ -125,7 +132,17 @@ export const reviewActions = {
   loadImport(graph: LogicGraph, items: ReviewItem[]) {
     set({ graph, items, override: false });
   },
+  setParam(nodeId: string, key: string, value: LogicParamValue) {
+    const v = typeof value === "string" ? stripNonEnglish(value) : value;
+    const node = state.graph.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    set({ ...state, graph: markNode(state.graph, nodeId, { params: { ...node.params, [key]: v } }) });
+  },
+  setType(nodeId: string, type: LogicNodeType) {
+    set({ ...state, graph: markNode(state.graph, nodeId, { type }) });
+  },
   reset() {
-    set({ graph: mockGraph, items: initialItems, override: false });
+    const fresh = getSampleGraphImport();
+    set({ graph: fresh.graph, items: fresh.items, override: false });
   },
 };

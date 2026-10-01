@@ -286,6 +286,31 @@ export function evaluateBlock(
       break;
     }
 
+    case "TP": {
+      // Pulse timer: rising edge on IN starts a fixed-length pulse on Q
+      const inVal = toBool(inputs.in);
+      const presetMs = Math.max(0, toNum(params.durationSec, 1) * 1000);
+      const prev = (state.tp as { elapsedMs: number; active: boolean; prevIn: boolean } | undefined) ?? {
+        elapsedMs: 0,
+        active: false,
+        prevIn: false,
+      };
+      let { elapsedMs, active } = prev;
+      if (inVal && !prev.prevIn && !active) {
+        active = true;
+        elapsedMs = 0;
+      }
+      const q = active && elapsedMs < presetMs;
+      if (active) {
+        elapsedMs += dtMs;
+        if (elapsedMs >= presetMs) active = false;
+      }
+      nextState.tp = { elapsedMs, active, prevIn: inVal };
+      outputs.q = q;
+      outputs.et = Number((Math.min(elapsedMs, presetMs) / 1000).toFixed(2));
+      break;
+    }
+
     case "COMP":
     case "COMPARATOR": {
       const a = toNum(inputs.a ?? inputs.in1 ?? Object.values(inputs)[0], 0);
