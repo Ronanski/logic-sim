@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 
 import { SimulationEngine, makePortKey } from "@/lib/logic-graph/engine";
 import { convertGraphJson, getSampleGraphImport, stripNonEnglish } from "../graph-json";
