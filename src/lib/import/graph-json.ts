@@ -104,7 +104,7 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 }
 
 /** Sizes in canvas units. They must match logic-node.tsx. */
-export const TERMINAL_W = 320;
+export const TERMINAL_W = 300;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 44;
 export const GATE_W = 112;
@@ -122,10 +122,10 @@ export const SHOW_GATE_SYMBOLS = true;
 const SYMBOL_PITCH = 66;
 export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND", "OR", "NOT"].includes(n.type);
 /** Space between columns, used by the wire router for its channels. */
-const COL_GAP = 80;
-const GAP_Y = 12;
+const COL_GAP = 90;
+const GAP_Y = 16;
 /** Screen units per drawing unit (sheet rows are ~9 units apart). */
-const DRAW_SCALE = 9;
+const DRAW_SCALE = 6;
 /** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
 const MAX_BAND_GAP = 40;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
@@ -139,14 +139,14 @@ export function terminalText(n: LogicNode) {
 
 export function terminalHeight(n: LogicNode): number {
   const { desc, addr, showDesc } = terminalText(n);
-  const tagLines = Math.max(1, Math.ceil((n.tag.length + (addr ? addr.length + 2 : 0)) / TERM_CHARS));
-  const descLines = showDesc ? Math.max(1, Math.ceil(desc.length / TERM_CHARS)) : 0;
-  return Math.max(TERMINAL_H, TERM_PAD_Y + (tagLines + descLines) * TERM_LINE_H);
+  const tagLines = Math.max(1, Math.ceil((n.tag.length + (addr ? addr.length + 2 : 0)) / 22));
+  const descLines = showDesc ? Math.max(1, Math.ceil(desc.length / 26)) : 0;
+  return Math.max(TERMINAL_H, 14 + (tagLines + descLines) * 18);
 }
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
-  if (isSymbolGate(n)) return n.inputs.length > 1 ? (n.inputs.length + 1) * SYMBOL_PITCH : 64;
+  if (isSymbolGate(n)) return Math.max(48, (n.inputs.length || 1) * 22 + 10);
   return GATE_HEADER + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_ROW + GATE_PAD;
 };
 

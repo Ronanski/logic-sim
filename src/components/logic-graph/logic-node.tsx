@@ -42,7 +42,7 @@ function timerLabel(node: LogicNode): string | null {
 export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   const { node, value, onToggle } = data;
   // Zoomed-out sheets get proportionally larger text/ports so labels stay readable (1 = normal size).
-  const b = useStore((st) => Math.round(Math.min(1.8, Math.max(1, 0.85 / st.transform[2])) * 10) / 10);
+  const b = 1;
   const handleSize = { width: 6 * b, height: 6 * b };
 
   // Signal terminals: one box with tag, address and the full description (text wraps, nothing is cut off).
@@ -56,7 +56,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           "relative flex flex-col justify-center gap-0 overflow-visible rounded-md border bg-card px-2 text-card-foreground",
           selected && "border-primary",
         )}
-        style={{ width: TERMINAL_W, height: nodeHeight(node) }}
+        style={{ width: TERMINAL_W, minHeight: nodeHeight(node) }}
         title={[node.tag, desc, addr].filter(Boolean).join(" · ")}
       >
         {node.inputs.map((p) => (
@@ -110,7 +110,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
     const showTag = node.tag && node.tag.toUpperCase() !== node.type;
     return (
       <div className="relative" style={{ width: GATE_W, height: nodeHeight(node) }} title={`${node.type}${showTag ? ` · ${node.tag}` : ""}`}>
-        <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
           <path
             d={SYMBOLS[node.type]}
             className={cn("fill-card", selected ? "stroke-primary" : "stroke-muted-foreground")}

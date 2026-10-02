@@ -29,9 +29,9 @@ export interface RouteRequest {
 const CELL = 10;
 const STUB = 20;
 const PAD = 100;
-const CLEARANCE = 10;
+const CLEARANCE = 12;
 const BEND = 8;
-const OVERLAP = 14;
+const OVERLAP = 150;
 const CROSS = 3;
 
 class Heap {
