@@ -45,43 +45,10 @@ These rules apply to **every** future change to LogicSim. Do not deviate.
 - Live signal state is shown with a red wire highlight plus the existing animated dash/flow treatment; static wires remain neutral.
 - The DITL-00 DXF in `public/symbol-library/` is the canonical reference source for native DCS symbol geometry.
 - Regression sheets: DITL-02, DITL-03A, DITL-13.
-### V7 — physical-net geometry / backend DXF parsing
-
-- DXF imports are parsed server-side through the TanStack Start server function. The DXF browser batch path must not rebuild geometry client-side.
-- The parser outputs physical DXF wire nets (`netPaths`) and logical-edge-to-net mapping (`edgeNets`) so a shared trunk/branch is rendered once, with real junction points (`netJunctions`).
-- ReactFlow is a view of parser geometry, not a layout engine for imported sheets. Node positions and port Y coordinates are derived from the same DXF coordinate transform used for native wire geometry.
-- Recognized timer symbols use their actual parsed DXF geometry; timers are never synthesized at the input row.
-- A* / routeEdges is fallback only for non-native synthetic edges.
-- Regression set: DITL-02, DITL-03A, DITL-13.
-
-### V7.1 — native port fidelity and backend-generated placement
-
-- Imported DXF node placement, port anchors, and physical wire paths must originate from the same backend DXF coordinate system.
-- Native port coordinates are not clamped to the symbol box. A multi-input OR can expose input handles far above/below its small visible symbol because the real receiving trunk is the physical connection point.
-- The renderer must place each ReactFlow handle at the backend-provided native port coordinate. It must not redistribute inputs evenly.
-- Timer blocks may infer a connection to a labelled sheet I/O row only when the native DXF contains the symbol/row geometry within the configured tolerance. This is a generic geometry rule, not a per-diagram coordinate exception.
-- Unlabelled free wire endpoints must not become visible input/output cards.
-- A shared physical net is drawn once with junction dots; logical edges remain for simulation and tracing.
-- Live state is calculated per physical net so one active branch makes the shared native wire red and animated.
-
-### V7.2 — exact symbol frame and port anchoring
-- Native imported logic symbols must be placed from the backend-transformed DXF bounding-box origin. The detected node center may be used only as fallback when no native bounds exist.
-- Port X is anchored to the detected symbol boundary. Physical wire contact Y remains authoritative for multi-input/branch layouts.
-- If a real DXF conductor stops within the parser tolerance before a symbol boundary, generate a short orthogonal backend bridge so the rendered wire visibly reaches the symbol. This bridge is geometry-derived, not diagram-specific.
-- Do not solve native-sheet placement by fixed coordinates, per-sheet offsets, or hardcoded gate positions.
-- Native symbol dimensions are allowed to remain small when the DXF symbol is small; do not stretch NOT/AND/OR blocks to a generic minimum that changes the drawing.
-- Native symbol bounds should use the detected symbol extents without artificial padding; visual spacing must come from the actual drawing, not a hidden safety margin.
-- Keep parsing/topology tolerance separate from visual geometry: a small internal wire-filtering pad is allowed, but native rendering bounds must remain the exact detected symbol extents.
 
 
-## Geometry architecture — V7.3
-- Native DXF `edgePaths` produced by the parser are the canonical physical route data.
-- The UI renders/bundles those paths; ReactFlow/A* is fallback only for edges without a native path.
-- Do not add a second SVG `netPaths` coordinate system or re-transform native wires in the renderer.
-- Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
-- Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
-- Regression drawings: DITL-02, DITL-03A, DITL-13.
 
-
-### Native DXF port geometry
-Native port coordinates are allowed to fall outside the compact symbol bounds when the source drawing uses an external receiving trunk or stub. Validation must not reject such coordinates; physical edge paths remain authoritative and the renderer may bridge them orthogonally to the measured handle.
+## V8 Stable Geometry Baseline
+- Geometry changes are allowed only when they preserve the existing native DXF edge-path pipeline.
+- Do not introduce a parallel net/routing representation for imported wires.
+- Validate `DITL-03A` after every geometry change before touching other sheets.

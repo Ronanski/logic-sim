@@ -37,13 +37,11 @@ export interface LogicNode {
   needsReview: boolean;
   /** Optional layout hint for rendering. */
   position?: { x: number; y: number };
-  /** Native drawing geometry. Port x/y are normalized around the symbol box; values may be outside 0..1 when the physical DXF conductor/receiving trunk sits beyond the symbol body. */
+  /** Native drawing geometry. Port y values are normalized 0..1 inside the node box. */
   geometry?: {
     width: number;
     height: number;
-    /** Exact native DXF symbol bounding box in drawing coordinates (Y up). */
-    bounds?: { minX: number; minY: number; maxX: number; maxY: number };
-    ports?: Record<string, { side: "L" | "R"; x: number; y: number }>;
+    ports?: Record<string, { side: "L" | "R"; y: number }>;
   };
 }
 
@@ -66,14 +64,7 @@ export interface LogicPoint {
 /** Geometry preserved from an imported drawing. Screen coordinates are produced by graph-json. */
 export interface ImportedGeometry {
   source: "DXF";
-  /** Legacy per-edge paths for compatibility/fallback routing. */
-  edgePaths?: Record<string, LogicPoint[]>;
-  /** Exact physical wire-net geometry produced by the DXF parser. One SVG path per net. */
-  netPaths?: Record<string, string>;
-  /** Logical edge -> physical DXF net id. */
-  edgeNets?: Record<string, string>;
-  /** Physical junction dots for each net. */
-  netJunctions?: Record<string, LogicPoint[]>;
+  edgePaths: Record<string, LogicPoint[]>;
 }
 
 export interface LogicGraph {

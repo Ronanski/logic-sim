@@ -418,7 +418,7 @@ function SimulatePage() {
     [flowNodes, signals, forcedInputs],
   );
 
-  // Physical DXF nets are rendered once. Multiple logical edges that share the same source
+  // Physical DXF nets are rendered once. Multiple logical edges that share a source
   // therefore appear as one trunk with branch/junction geometry instead of stacked lines.
   const netOf = useMemo(() => {
     const out: Record<string, string> = {};
@@ -433,7 +433,11 @@ function SimulatePage() {
     return graph.edges.map((e) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
       const val = signals[srcKey];
-      const live = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
+      const isActive = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
+      // Idle: thin dark wire like the printed sheet. Live TRUE signals are red.
+      // Keep ReactFlow's animated edge/dash behavior for live signals.
+      const live = isActive;
+
       const net = netOf[e.id];
       const bundle = netBundles[net];
       const bundleOwner = !!bundle && bundle.owner === e.id;
