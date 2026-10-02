@@ -11,7 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { RoutedEdge } from "@/components/logic-graph/routed-edge";
 import { RouteManager } from "@/components/logic-graph/route-manager";
-import type { Pt } from "@/lib/logic-graph/route-edges";
+import { junctionPoints, type Pt } from "@/lib/logic-graph/route-edges";
 import {
   Activity,
   ChevronDown,
@@ -419,6 +419,12 @@ function SimulatePage() {
   );
 
   // Active wire calculation
+  const junctions = useMemo(() => {
+    const netOf: Record<string, string> = {};
+    for (const e of graph.edges) netOf[e.id] = `${e.from.nodeId}:${e.from.portId}`;
+    return junctionPoints(routes, netOf);
+  }, [graph, routes]);
+
   const edges: Edge[] = useMemo(() => {
     return graph.edges.map((e) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
@@ -432,7 +438,7 @@ function SimulatePage() {
         target: e.to.nodeId,
         targetHandle: e.to.portId,
         type: "routed",
-        data: { points: routes[e.id] },
+        data: { points: routes[e.id], junctions: junctions[e.id] },
         animated: isActive,
         style: {
           stroke: isActive ? "var(--primary)" : "var(--muted-foreground)",
@@ -441,7 +447,7 @@ function SimulatePage() {
         },
       };
     });
-  }, [graph, signals, routes]);
+  }, [graph, signals, routes, junctions]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);

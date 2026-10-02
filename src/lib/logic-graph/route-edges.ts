@@ -265,23 +265,62 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
   return out;
 }
 
-/** SVG path through the points with rounded corners. */
-export function pathFromPoints(pts: Pt[], radius = 6): string {
+/** SVG path through the points with square corners (no curves). */
+export function pathFromPoints(pts: Pt[]): string {
   if (pts.length < 2) return "";
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const p = pts[i - 1];
-    const c = pts[i];
-    const n = pts[i + 1];
-    const d1 = Math.hypot(c.x - p.x, c.y - p.y);
-    const d2 = Math.hypot(n.x - c.x, n.y - c.y);
-    const r = Math.min(radius, d1 / 2, d2 / 2);
-    const bx = c.x + ((p.x - c.x) / d1) * r;
-    const by = c.y + ((p.y - c.y) / d1) * r;
-    const ax = c.x + ((n.x - c.x) / d2) * r;
-    const ay = c.y + ((n.y - c.y) / d2) * r;
-    d += ` L ${bx} ${by} Q ${c.x} ${c.y} ${ax} ${ay}`;
+  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+}
+
+/**
+ * Junction points: where wires of the same net split or merge (3+ wire directions meet).
+ * Crossings of different nets never get a dot. Each point is returned once per net,
+ * attached to the first wire of that net so it is drawn once.
+ */
+export function junctionPoints(routes: Record<string, Pt[]>, netOf: Record<string, string>): Record<string, Pt[]> {
+  const byNet = new Map<string, string[]>();
+  for (const id of Object.keys(routes)) {
+    const n = netOf[id];
+    if (n === undefined || routes[id].length < 2) continue;
+    if (!byNet.has(n)) byNet.set(n, []);
+    byNet.get(n)!.push(id);
   }
-  const last = pts[pts.length - 1];
-  return `${d} L ${last.x} ${last.y}`;
+  const out: Record<string, Pt[]> = {};
+  const key = (p: Pt) => `${Math.round(p.x * 2)},${Math.round(p.y * 2)}`;
+  const dir = (a: Pt, b: Pt) => (Math.abs(a.y - b.y) < 0.5 ? (b.x > a.x ? "R" : "L") : b.y > a.y ? "D" : "U");
+  for (const ids of byNet.values()) {
+    if (ids.length < 2) continue;
+    const dirs = new Map<string, Set<string>>();
+    const pos = new Map<string, Pt>();
+    const add = (p: Pt, d: string) => {
+      const k = key(p);
+      pos.set(k, p);
+      if (!dirs.has(k)) dirs.set(k, new Set());
+      dirs.get(k)!.add(d);
+    };
+    const segs: [Pt, Pt][] = [];
+    for (const id of ids) {
+      const pts = routes[id];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        add(pts[i], dir(pts[i], pts[i + 1]));
+        add(pts[i + 1], dir(pts[i + 1], pts[i]));
+        segs.push([pts[i], pts[i + 1]]);
+      }
+    }
+    // a vertex that lies inside another wire's straight run also sees that run's two directions
+    for (const [k, p] of [...pos]) {
+      for (const [a, b] of segs) {
+        const horiz = Math.abs(a.y - b.y) < 0.5;
+        const inside = horiz
+          ? Math.abs(p.y - a.y) < 0.5 && p.x > Math.min(a.x, b.x) + 0.5 && p.x < Math.max(a.x, b.x) - 0.5
+          : Math.abs(p.x - a.x) < 0.5 && p.y > Math.min(a.y, b.y) + 0.5 && p.y < Math.max(a.y, b.y) - 0.5;
+        if (!inside) continue;
+        dirs.get(k)!.add(horiz ? "L" : "U");
+        dirs.get(k)!.add(horiz ? "R" : "D");
+      }
+    }
+    const pts: Pt[] = [];
+    for (const [k, d] of dirs) if (d.size >= 3) pts.push(pos.get(k)!);
+    if (pts.length) out[ids[0]] = pts;
+  }
+  return out;
 }

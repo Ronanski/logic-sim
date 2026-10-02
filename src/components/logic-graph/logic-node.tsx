@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { LogicNode } from "@/lib/logic-graph/types";
-import { GATE_W, ROW_H, TERMINAL_W, isSymbolGate, isTableTerminal, nodeHeight, terminalCells, terminalText, terminalWidth } from "@/lib/import/graph-json";
+import { GATE_W, TERMINAL_W, isSymbolGate, nodeHeight, terminalText } from "@/lib/import/graph-json";
 
 export type LogicFlowNode = Node<
   {
@@ -45,66 +45,6 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   const b = 1;
   const handleSize = { width: 6 * b, height: 6 * b };
 
-  // Sheet-row terminals: one 28 px table row (FROM | LOC | NO. | SERVICE ... ), so wires line up with the drawing's rows.
-  if (isTableTerminal(node)) {
-    const c = terminalCells(node);
-    const isIn = node.type === "DI";
-    const cell = "flex h-full min-w-0 items-center truncate border-r px-2 text-[11px] leading-none";
-    const lamp = (
-      <span
-        className={cn("mx-2 h-4 w-4 shrink-0 rounded-full border", value ? "border-primary bg-primary" : "bg-muted")}
-        aria-label={value ? "On" : "Off"}
-      />
-    );
-    return (
-      <div
-        className={cn("relative flex items-center overflow-visible rounded-md border bg-card text-card-foreground", selected && "border-primary")}
-        style={{ width: terminalWidth(node), height: ROW_H }}
-        title={[c.from, c.loc, `NO. ${c.no}`, c.service, c.addr, c.to && `TO ${c.to}`].filter(Boolean).join(" · ")}
-      >
-        {node.inputs.map((p) => (
-          <Handle key={p.id} type="target" position={Position.Left} id={p.id} style={handleSize} />
-        ))}
-        {node.outputs.map((p) => (
-          <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={handleSize} />
-        ))}
-        {isIn ? (
-          <>
-            <span className={cn(cell, "w-16 shrink-0 font-semibold")}>
-              {node.needsReview && <AlertTriangle className="mr-1 h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-              {c.from}
-            </span>
-            <span className={cn(cell, "w-24 shrink-0 text-muted-foreground")}>{c.loc}</span>
-            <span className={cn(cell, "w-8 shrink-0 justify-center font-mono text-muted-foreground")}>{c.no}</span>
-            <span className="flex h-full min-w-0 flex-1 items-center truncate px-2 text-[11px] leading-none">{c.service}</span>
-            {c.addr && <span className="shrink-0 pr-2 font-mono text-[11px] leading-none text-muted-foreground">{c.addr}</span>}
-            {onToggle && (
-              <Switch
-                className="nodrag nopan mr-2"
-                checked={!!value}
-                onCheckedChange={() => onToggle()}
-                onClick={(e) => e.stopPropagation()}
-                aria-label={`Force ${node.tag}`}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            {lamp}
-            <span className="flex h-full min-w-0 flex-1 items-center truncate border-l px-2 text-[11px] font-semibold leading-none">
-              {node.needsReview && <AlertTriangle className="mr-1 h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-              {c.service}
-            </span>
-            <span className={cn(cell, "w-16 shrink-0 justify-end border-l font-mono text-muted-foreground")}>{c.addr}</span>
-            <span className={cn(cell, "w-8 shrink-0 justify-center border-l font-mono text-muted-foreground")}>{c.no}</span>
-            <span className={cn(cell, "w-16 shrink-0 border-l text-muted-foreground")}>{c.loc}</span>
-            <span className="flex h-full w-20 shrink-0 items-center truncate border-l px-2 text-[11px] leading-none text-muted-foreground">{c.to}</span>
-          </>
-        )}
-      </div>
-    );
-  }
-
   // Signal terminals: one box with tag, address and the full description (text wraps, nothing is cut off).
   if (node.type === "DI" || node.type === "DO") {
     const { desc, addr, showDesc } = terminalText(node);
@@ -116,7 +56,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           "relative flex flex-col justify-center gap-0 overflow-visible rounded-md border bg-card px-2 text-card-foreground",
           selected && "border-primary",
         )}
-        style={{ width: TERMINAL_W, minHeight: nodeHeight(node) }}
+        style={{ width: TERMINAL_W, height: nodeHeight(node) }}
         title={[node.tag, desc, addr].filter(Boolean).join(" · ")}
       >
         {node.inputs.map((p) => (
