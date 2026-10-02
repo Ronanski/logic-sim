@@ -152,7 +152,8 @@ export function terminalText(n: LogicNode) {
 }
 
 /** Every input/output box has the same size; the text wraps inside (tag + address line, then the description). */
-export function terminalHeight(_n?: LogicNode): number {
+export function terminalHeight(n?: LogicNode): number {
+  if (n?.geometry?.height) return Math.max(26, n.geometry.height);
   return TERMINAL_H;
 }
 
@@ -373,22 +374,48 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     const maxY = Math.max(...allY);
     // Preserve drawing proportions. Scale is derived from the actual signal-row spacing
     // so imported rows do not collapse into overlapping ReactFlow nodes.
-    const terminalYs = nodes.filter((n) => n.type === "DI" || n.type === "DO")
-      .map((n) => drawY.get(n.id)!).sort((a, b) => b - a);
+    const terminalNodes = nodes.filter((n) => n.type === "DI" || n.type === "DO");
+    const terminalYs = terminalNodes.map((n) => drawY.get(n.id)!).sort((a, b) => b - a);
     const gaps = terminalYs.map((v, i) => i ? Math.abs(terminalYs[i - 1] - v) : Infinity)
       .filter((v) => Number.isFinite(v) && v > 0.5);
     const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 10;
     const SCALE = Math.max(2.2, Math.min(4.5, 62 / Math.max(1, medianGap)));
+
+    // The DXF row spacing is authoritative. UI cards must fit inside a drawing row
+    // instead of using the old fixed 48px height, which caused close rows in sheets
+    // such as DITL-02 to overlap each other. Keep enough height for readability,
+    // but never let a terminal occupy most of the distance to its nearest neighbour.
+    const rowGapPx = new Map<string, number>();
+    for (const n of terminalNodes) {
+      const y0 = drawY.get(n.id)!;
+      let nearest = Infinity;
+      for (const m of terminalNodes) {
+        if (m.id === n.id) continue;
+        const d = Math.abs(y0 - drawY.get(m.id)!);
+        if (d > 0.5 && d < nearest) nearest = d;
+      }
+      const drawingGapPx = Number.isFinite(nearest) ? nearest * SCALE : medianGap * SCALE;
+      rowGapPx.set(n.id, Math.max(26, Math.min(48, drawingGapPx * 0.72)));
+    }
+
     for (const n of nodes) {
       const dx = drawX.get(n.id)!;
       const dy = drawY.get(n.id)!;
       const x = (dx - minX) * SCALE;
       const y = (maxY - dy) * SCALE;
-      const h = n.geometry ? Math.max(44, n.geometry.height * SCALE) : nodeHeight(n);
-      if (n.geometry) n.geometry = { ...n.geometry, width: GATE_W, height: h };
+      const importedTerminalH = rowGapPx.get(n.id);
+      const h = isTerminal(n)
+        ? (importedTerminalH ?? terminalHeight(n))
+        : (n.geometry ? Math.max(44, n.geometry.height * SCALE) : nodeHeight(n));
+      if (isTerminal(n)) {
+        // Store the calibrated height so LogicNodeView and ReactFlow use the same box.
+        n.geometry = { ...(n.geometry ?? { width: TERMINAL_W, height: h }), width: TERMINAL_W, height: h };
+      } else if (n.geometry) {
+        n.geometry = { ...n.geometry, width: GATE_W, height: h };
+      }
       // Parser positions are drawing anchors/centers. ReactFlow positions are top-left coordinates.
-      if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - terminalHeight(n) / 2 };
-      else if (n.type === "DO") n.position = { x, y: y - terminalHeight(n) / 2 };
+      if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - h / 2 };
+      else if (n.type === "DO") n.position = { x, y: y - h / 2 };
       else n.position = { x: x - GATE_W / 2, y: y - h / 2 };
     }
     const edgePaths: Record<string, LogicPoint[]> = {};

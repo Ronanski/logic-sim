@@ -60,3 +60,8 @@ Update this file after every change.
 - [ ] Use symbol library in the Import parser to assign block types
 - [ ] Persistence — decide on backend (e.g. Lovable Cloud) when real data arrives
 
+
+
+## DXF geometry V3
+- Imported terminal heights are calibrated from native DXF row spacing to prevent overlapping input/output cards.
+- Native edge paths are preserved; live ReactFlow handles connect with short orthogonal bridges instead of mutating the DXF route.
