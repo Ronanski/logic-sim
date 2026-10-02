@@ -128,6 +128,12 @@ const GAP_Y = 8;
 const DRAW_SCALE = 6;
 /** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
 const MAX_BAND_GAP = 24;
+/** Minimum clear space between a gate and the gate that feeds it, so every wire has room for a clean channel. */
+const MIN_GATE_GAP = 90;
+/** Minimum distance between two input ports on the same gate. */
+const MIN_PORT_GAP = 22;
+/** A gate becomes a tall bar (ports on the source rows) only when its sources are this close; otherwise it stays compact. */
+const MAX_BAR_GAP = 80;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
 
 /** Text shown inside a terminal box: tag (+ address) and, when different, the description. */
@@ -144,7 +150,10 @@ export function terminalHeight(_n?: LogicNode): number {
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
+  if (n.portOffsets?.length) return Math.max(44, ...n.portOffsets) + GATE_PAD * 2;
   if (isSymbolGate(n)) return Math.max(2, n.inputs.length + 1) * 28;
+  // A lone NOT is short enough to sit level with one signal row.
+  if (n.type === "NOT" && n.inputs.length <= 1) return 28;
   // Compact gate box: type name in the middle, one 20 px slot per port.
   return Math.max(44, Math.max(n.inputs.length, n.outputs.length, 1) * 20 + 12);
 };
@@ -180,7 +189,7 @@ function compressGaps(nodes: LogicNode[]) {
  * outputs in a right column on their sheet rows, so the picture reads like the original sheet.
  * Gates that would overlap are pushed down. Returns false when the drawing has no positions.
  */
-function layoutSheet(nodes: LogicNode[], drawX: Map<string, number>, drawY: Map<string, number>): boolean {
+function layoutSheet(nodes: LogicNode[], edges: LogicEdge[], drawX: Map<string, number>, drawY: Map<string, number>): boolean {
   const gates = nodes.filter((n) => !isTerminal(n));
   if (!nodes.length || !gates.length || nodes.some((n) => !drawX.has(n.id) || !drawY.has(n.id))) return false;
   const topY = Math.max(...nodes.map((n) => drawY.get(n.id)!));
@@ -191,6 +200,19 @@ function layoutSheet(nodes: LogicNode[], drawX: Map<string, number>, drawY: Map<
   const gateStart = TERMINAL_W + 70;
   for (const g of gates) {
     g.position = { x: gateStart + (drawX.get(g.id)! - gx0) * XS, y: (topY - drawY.get(g.id)!) * DRAW_SCALE - nodeHeight(g) / 2 };
+  }
+  // A gate always sits clearly to the right of the gates that feed it: no wire runs backwards or
+  // squeezes through a gap too small for a channel.
+  const gateById = new Map(gates.map((g) => [g.id, g]));
+  const origX = new Map(gates.map((g) => [g.id, g.position!.x]));
+  const rank = new Map([...gates].sort((a, b) => origX.get(a.id)! - origX.get(b.id)!).map((g, i) => [g.id, i]));
+  for (const g of [...gates].sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)) {
+    for (const e of edges) {
+      if (e.to.nodeId !== g.id) continue;
+      const p = gateById.get(e.from.nodeId);
+      if (!p || p === g || rank.get(p.id)! >= rank.get(g.id)!) continue; // terminals and feedback edges are ignored
+      g.position = { x: Math.max(g.position!.x, p.position!.x + GATE_W + MIN_GATE_GAP), y: g.position!.y };
+    }
   }
   // keep gates from overlapping: push the lower one down
   const MARGIN = 14;
@@ -218,7 +240,69 @@ function layoutSheet(nodes: LogicNode[], drawX: Map<string, number>, drawY: Map<
     }
   }
   compressGaps(nodes);
+  alignGates(nodes, edges);
   return true;
+}
+
+/**
+ * Makes wires straight, like the printed sheet: every gate is moved so its input ports line up with the
+ * outputs that feed them. AND / OR (inputs are interchangeable) get their ports ordered top to bottom by
+ * source and placed exactly on the source rows, so a wide OR is a tall bar with straight wires entering it
+ * and no crossings. Other gates are shifted so their ports sit level with their sources.
+ */
+function alignGates(nodes: LogicNode[], edges: LogicEdge[]) {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const gates = nodes.filter((n) => !isTerminal(n)).sort((a, b) => a.position!.x - b.position!.x || a.position!.y - b.position!.y);
+  const outY = (n: LogicNode) => n.position!.y + nodeHeight(n) / 2;
+  const placed: LogicNode[] = [];
+  const MARGIN = 8;
+  for (const g of gates) {
+    // forward edges only (the source is already to the left)
+    const src = new Map<string, number>(); // port id -> y of its source
+    for (const e of edges) {
+      if (e.to.nodeId !== g.id) continue;
+      const p = byId.get(e.from.nodeId);
+      if (!p || p === g || p.position!.x + (isTerminal(p) ? TERMINAL_W : GATE_W) > g.position!.x) continue;
+      if (!src.has(e.to.portId)) src.set(e.to.portId, outY(p));
+    }
+    if (src.size) {
+      const swappable = (g.type === "AND" || g.type === "OR") && g.inputs.length >= 2 && g.inputs.every((p) => src.has(p.id));
+      if (swappable) g.inputs = [...g.inputs].sort((a, b) => src.get(a.id)! - src.get(b.id)!);
+      const sorted = swappable ? g.inputs.map((p) => src.get(p.id)!) : [];
+      const closeTogether = sorted.length >= 2 && sorted.every((y, i) => i === 0 || y - sorted[i - 1] <= MAX_BAR_GAP);
+      if (swappable && closeTogether) {
+        // fan-in bar: ports exactly on the source rows, so every wire enters straight
+        const ys: number[] = [];
+        for (const y of sorted) ys.push(Math.max(y, ys.length ? ys[ys.length - 1] + MIN_PORT_GAP : -Infinity));
+        const top = ys[0] - GATE_PAD - 6;
+        g.portOffsets = ys.map((y) => y - top);
+        g.position = { x: g.position!.x, y: Math.round(top) };
+      } else {
+        const h = nodeHeight(g);
+        const n = Math.max(g.inputs.length, 1);
+        const diffs: number[] = [];
+        g.inputs.forEach((p, i) => {
+          if (src.has(p.id)) diffs.push(src.get(p.id)! - (h * (i + 1)) / (n + 1));
+        });
+        g.position = { x: g.position!.x, y: Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length) };
+      }
+    }
+    // never let two gates overlap; a pushed gate keeps its ports, wires just take a clean step
+    for (let guard = 0; guard < 200; guard++) {
+      const hit = placed.find(
+        (o) =>
+          o.position!.x < g.position!.x + GATE_W + MARGIN &&
+          g.position!.x < o.position!.x + GATE_W + MARGIN &&
+          o.position!.y < g.position!.y + nodeHeight(g) + MARGIN &&
+          g.position!.y < o.position!.y + nodeHeight(o) + MARGIN,
+      );
+      if (!hit) break;
+      g.position = { x: g.position!.x, y: hit.position!.y + nodeHeight(hit) + MARGIN };
+    }
+    placed.push(g);
+  }
+  const minY = Math.min(...nodes.map((n) => n.position!.y));
+  for (const n of nodes) n.position = { x: n.position!.x, y: n.position!.y - minY };
 }
 
 /**
@@ -227,7 +311,7 @@ function layoutSheet(nodes: LogicNode[], drawX: Map<string, number>, drawY: Map<
  * that would overlap are pushed down, so the picture reads like the original sheet.
  */
 function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, number>, drawX: Map<string, number> = new Map()) {
-  if (layoutSheet(nodes, drawX, drawY)) return;
+  if (layoutSheet(nodes, edges, drawX, drawY)) return;
   const depth = new Map<string, number>();
   const preds = new Map<string, string[]>();
   for (const n of nodes) preds.set(n.id, []);

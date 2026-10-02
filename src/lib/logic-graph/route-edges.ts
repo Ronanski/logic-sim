@@ -33,6 +33,8 @@ const CLEARANCE = 12;
 const BEND = 8;
 const OVERLAP = 150;
 const CROSS = 3;
+/** Small pull toward the middle of the gap for vertical runs, so channels sit mid-gap instead of hugging a box. */
+const MID_PULL = 0.04;
 
 class Heap {
   private k: number[] = [];
@@ -148,6 +150,7 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
     blocked[goal] = 0;
     run++;
 
+    const midI = (si + gi) / 2;
     const heap = new Heap();
     const s0 = start * 2; // state = cell*2 + axis (0 = arrived horizontally, 1 = vertically)
     g[s0] = 0;
@@ -184,6 +187,7 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
         if (same === net) cost = Math.max(0.3, cost - 0.7);
         else if (same !== 0) cost += OVERLAP;
         if (cross !== 0 && cross !== net) cost += CROSS;
+        if (nAxis === 1) cost += MID_PULL * Math.abs(ni - midI);
         if (nc === goal && nAxis === 1) cost += BEND;
         const ns = nc * 2 + nAxis;
         const ng = g[s] + cost;

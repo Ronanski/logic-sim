@@ -144,7 +144,9 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   // Logic blocks: a compact box with the type name in the middle (like the AND / OR / NOT labels on the sheet).
   // Port names are only shown where they matter (SR: S / R); timers show their time.
   const inN = Math.max(node.inputs.length, 1);
-  const pct = (i: number, n: number) => ((i + 1) / (n + 1)) * 100;
+  // Ports sit on exact rows when the layout aligned them to their sources; otherwise they are spread evenly.
+  const portTop = (i: number, n: number) => (node.portOffsets?.[i] !== undefined ? `${node.portOffsets[i]}px` : `${((i + 1) / (n + 1)) * 100}%`);
+  const portTopCalc = (i: number, n: number, d: number) => (node.portOffsets?.[i] !== undefined ? `${node.portOffsets[i] - d}px` : `calc(${((i + 1) / (n + 1)) * 100}% - ${d}px)`);
   const namedPorts = node.type === "SR";
   const extra = timerLabel(node);
   const showTag = node.tag && node.tag.toUpperCase() !== node.type;
@@ -164,9 +166,9 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
       {(extra || showTag) && <span className="font-mono text-[12px] leading-4 text-secondary-foreground">{extra ?? node.tag}</span>}
       {node.inputs.map((p, i) => (
         <div key={p.id}>
-          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i, inN)}%` }} />
+          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: portTop(i, inN) }} />
           {namedPorts && (
-            <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${pct(i, inN)}% - 7px)`, lineHeight: "14px" }}>
+            <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: portTopCalc(i, inN, 7), lineHeight: "14px" }}>
               {p.name}
             </span>
           )}
