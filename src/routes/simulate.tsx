@@ -418,6 +418,15 @@ function SimulatePage() {
     [flowNodes, signals, forcedInputs],
   );
 
+  // Junction dots are derived from the imported native routes.
+  // Keep this independent from hover/focus state so cursor movement can never
+  // hide or dim the underlying DXF wire geometry.
+  const junctions = useMemo(() => {
+    const netOf: Record<string, string> = {};
+    for (const e of graph.edges) netOf[e.id] = `${e.from.nodeId}:${e.from.portId}`;
+    return junctionPoints(routes, netOf);
+  }, [graph, routes]);
+
   const edges: Edge[] = useMemo(() => {
     return graph.edges.map((e) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
