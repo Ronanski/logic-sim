@@ -17,6 +17,9 @@ export function stripNonEnglish(text: string): string {
 }
 
 const paramValue = z.union([z.number(), z.string(), z.boolean()]);
+// Native DXF port Y may legitimately fall outside the symbol body when a shared
+// receiving trunk terminates at the symbol. Renderer/router handles this with the
+// native physical path + orthogonal bridge; do not reject valid DXF geometry here.
 const schema = z.object({
   nodes: z
     .array(
@@ -32,7 +35,7 @@ const schema = z.object({
         geometry: z.object({
           width: z.number().positive(),
           height: z.number().positive(),
-          ports: z.record(z.string(), z.object({ side: z.enum(["L", "R"]), y: z.number().min(0).max(1) })).optional(),
+          ports: z.record(z.string(), z.object({ side: z.enum(["L", "R"]), y: z.number() })).optional(),
         }).optional(),
       }),
     )

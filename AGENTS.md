@@ -57,3 +57,7 @@
 - Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
 - Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
 - Regression drawings: DITL-02, DITL-03A, DITL-13.
+
+
+### DXF geometry invariant
+Do not add schema constraints that reject valid native port coordinates merely because they fall outside 0..1. The parser preserves source drawing geometry; shared receiving trunks can place a logical port outside the compact symbol body. Keep validation and type definitions aligned with this invariant.

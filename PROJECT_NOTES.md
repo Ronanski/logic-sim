@@ -109,3 +109,7 @@ Update this file after every change.
 - Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
 - Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
 - Regression drawings: DITL-02, DITL-03A, DITL-13.
+
+
+## 2026-10-03 — V7.4 schema alignment
+The DXF parser intentionally preserves native gate port coordinates that can fall outside the compact symbol body (for example a shared OR receiving trunk). The Graph JSON validator must therefore accept native port Y values outside 0..1; rejecting them caused server-side DXF imports to fail before Review.

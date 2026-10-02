@@ -81,3 +81,7 @@ These rules apply to **every** future change to LogicSim. Do not deviate.
 - Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
 - Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
 - Regression drawings: DITL-02, DITL-03A, DITL-13.
+
+
+### Native DXF port geometry
+Native port coordinates are allowed to fall outside the compact symbol bounds when the source drawing uses an external receiving trunk or stub. Validation must not reject such coordinates; physical edge paths remain authoritative and the renderer may bridge them orthogonally to the measured handle.

@@ -37,7 +37,7 @@ export interface LogicNode {
   needsReview: boolean;
   /** Optional layout hint for rendering. */
   position?: { x: number; y: number };
-  /** Native drawing geometry. Port x/y are normalized to the symbol box; values may be outside 0..1 for external trunks/stubs. */
+  /** Native drawing geometry. Port x/y are normalized around the symbol box; values may be outside 0..1 when the physical DXF conductor/receiving trunk sits beyond the symbol body. */
   geometry?: {
     width: number;
     height: number;

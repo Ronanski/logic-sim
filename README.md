@@ -70,3 +70,7 @@ npm run dev
 - Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
 - Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
 - Regression drawings: DITL-02, DITL-03A, DITL-13.
+
+
+### DXF import geometry note
+Native symbol ports may use normalized coordinates outside 0..1 when the source DCS drawing uses external receiving trunks. This is intentional and is accepted by the graph validator.
