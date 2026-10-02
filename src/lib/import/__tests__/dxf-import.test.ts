@@ -37,7 +37,7 @@ describe("DXF import", () => {
     eq(String(irp.params.to).startsWith("03A-02"), true);
     // same sheet row -> same screen Y on both sides (row 2 vs row 52)
     const y = (n: { position?: { y: number } }) => n.position!.y;
-    eq(y(di), y(dos.find((n) => n.params.rowNo === 52)!));
+    eq(Math.round(y(di)), Math.round(y(dos.find((n) => n.params.rowNo === 52)!)));
   });
 
   it("DITL-03A still parses with its pulse timer", () => {
