@@ -545,6 +545,39 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     }
   }
 
+
+  // sheet table columns (row numbers sit in the CON layer, left 1..N and right 51..N)
+  const numTexts = texts.filter((t) => S.wire_layers.includes(t.layer) && /^\d{1,3}$/.test(t.text.trim()));
+  const median = (v: number[]) => (v.length ? [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)] : null);
+  const midNumX = numTexts.length ? (Math.min(...numTexts.map((t) => t.x)) + Math.max(...numTexts.map((t) => t.x))) / 2 : 0;
+  const colL = median(numTexts.filter((t) => t.x < midNumX).map((t) => t.x));
+  const colR = median(numTexts.filter((t) => t.x >= midNumX).map((t) => t.x));
+  /** Table cells of a terminal's row: row number, LOCATION and (for outputs) the TO page link. */
+  const tableCells = (ti: number): Record<string, unknown> => {
+    const tm = terminals[ti];
+    const col = tm.side === "L" ? colL : colR;
+    if (col === null) return {};
+    let best: TextItem | null = null;
+    for (const t of numTexts) {
+      if (Math.abs(t.x - col) > 8 || Math.abs(t.y - tm.y) > S.row_band + 2) continue;
+      if (!best || Math.abs(t.y - tm.y) < Math.abs(best.y - tm.y)) best = t;
+    }
+    if (!best) return {};
+    const rows = (assigned.get(ti) ?? []).filter((t) => t.layer === S.desc_layer).sort((a, b) => b.y - a.y);
+    const join = (l: TextItem[]) => l.map((t) => t.text).join(" ");
+    const out: Record<string, unknown> = { rowNo: parseInt(best.text.trim(), 10) };
+    if (tm.side === "L") {
+      const loc = join(rows.filter((t) => t.x < col - 1 && !tagRe.test(t.text)));
+      if (loc) out.loc = loc;
+    } else {
+      const loc = join(rows.filter((t) => t.x > col - 1 && t.x <= col + 16 && !/^\d+$/.test(t.text)));
+      const to = join(rows.filter((t) => t.x > col + 16));
+      if (loc) out.loc = loc;
+      if (to) out.to = to;
+    }
+    return out;
+  };
+
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
@@ -599,8 +632,9 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     inI += 1;
     const base = tag.replace(/^\(+|\)+$/g, "");
     let sid = tag ? `IN-${base}${tag.startsWith("(") ? "-alt" : ""}` : `IN-${inI}`;
-    const params: Record<string, unknown> = { description: desc, role: "input" };
+    const params: Record<string, unknown> = { description: desc, role: "input", ...tableCells(ti) };
     if (addr) params.address = addr;
+    if (tag) params.from = tag;
     sid = addNode(sid, tag || desc || sid, "signal", params, [{ id: "O1", dir: "out" }], !(tag || desc), 1.0, { x, y });
     let src: [string, string] = [sid, "O1"];
     if (timer) {
@@ -622,7 +656,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
       .sort(byYDesc).map((t) => t.text).join(" ");
     const addr = rows.find((t) => t.layer === S.addr_layer && addrRe.test(t.text))?.text ?? "";
     outI += 1;
-    const params: Record<string, unknown> = { description: desc, role: "output" };
+    const params: Record<string, unknown> = { description: desc, role: "output", ...tableCells(ti) };
     if (addr) params.address = addr;
     const oid = addNode(`OUT-${outI}`, desc || `OUT-${outI}`, "signal", params, [{ id: "I1", dir: "in" }], !desc, 1.0, { x, y: terminals[ti].y });
     lst(sinkOf, root).push([oid, "I1"]);

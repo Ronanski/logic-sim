@@ -26,6 +26,20 @@ describe("DXF import", () => {
     eq((report).length, 0);
   });
 
+  it("DITL-03B: terminals carry sheet-table cells and sit on the row grid", () => {
+    const { graph } = load("_9_DITL-03B.dxf");
+    const di = graph.nodes.find((n) => n.tag === "25A-58")!;
+    eq(di.params.rowNo, 2);
+    eq(di.params.loc, "HVP SOFT STARTER");
+    const dos = graph.nodes.filter((n) => n.type === "DO");
+    const irp = dos.find((n) => n.params.rowNo === 55)!;
+    eq(irp.params.loc, "IRP");
+    eq(String(irp.params.to).startsWith("03A-02"), true);
+    // same sheet row -> same screen Y on both sides (row 2 vs row 52)
+    const y = (n: { position?: { y: number } }) => n.position!.y;
+    eq(y(di), y(dos.find((n) => n.params.rowNo === 52)!));
+  });
+
   it("DITL-03A still parses with its pulse timer", () => {
     const { graph } = load("_8_DITL-03A.dxf");
     eq((graph.nodes.filter((n) => n.type === "DI")).length, 21);

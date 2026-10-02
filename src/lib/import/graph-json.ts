@@ -107,6 +107,10 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 export const TERMINAL_W = 300;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 44;
+/** Table layout: one sheet row = one fixed-height line, so wires line up with the rows of the drawing. */
+export const ROW_H = 28;
+export const TABLE_W_IN = 400;
+export const TABLE_W_OUT = 440;
 export const GATE_W = 112;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
@@ -118,14 +122,14 @@ const TERM_PAD_Y = 12;
 const TERM_CHARS = 24;
 /** Draw AND / OR / NOT as logic gate symbols (set to false to go back to plain boxes). */
 export const SHOW_GATE_SYMBOLS = true;
-/** Vertical space per input port on a gate symbol (about one signal row, so wires run straight in). */
-const SYMBOL_PITCH = 66;
 export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND", "OR", "NOT"].includes(n.type);
 /** Space between columns, used by the wire router for its channels. */
 const COL_GAP = 90;
 const GAP_Y = 16;
-/** Screen units per drawing unit (sheet rows are ~9 units apart). */
-const DRAW_SCALE = 6;
+/** Screen units per drawing unit (sheet rows are ~9 units apart). Old free-form layout. */
+const DRAW_SCALE = 9;
+/** Sheet row pitch in drawing units; table layout maps one row to ROW_H pixels. */
+const ROW_UNITS = 9;
 /** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
 const MAX_BAND_GAP = 40;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
@@ -137,7 +141,30 @@ export function terminalText(n: LogicNode) {
   return { desc, addr, showDesc: !!desc && desc !== n.tag };
 }
 
+/** True when the terminal came from a sheet row (has a row number) and is drawn as a table row. */
+export const isTableTerminal = (n: { type: string; params: Record<string, unknown> }) =>
+  (n.type === "DI" || n.type === "DO") && typeof n.params.rowNo === "number";
+
+export const terminalWidth = (n: LogicNode) => (isTableTerminal(n) ? (n.type === "DI" ? TABLE_W_IN : TABLE_W_OUT) : TERMINAL_W);
+
+/** Cells of a table-row terminal (FROM / LOCATION / NO. / SERVICE / ADDRESS / TO). */
+export function terminalCells(n: LogicNode) {
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const desc = str(n.params.description);
+  const from = str(n.params.from);
+  const service = n.type === "DI" ? desc || n.tag : desc || n.tag;
+  return {
+    no: Number(n.params.rowNo),
+    from: from || (n.type === "DI" ? n.tag : ""),
+    loc: str(n.params.loc),
+    service: n.type === "DI" && !from && desc && desc !== n.tag ? `${n.tag} · ${desc}` : service,
+    addr: str(n.params.address),
+    to: str(n.params.to),
+  };
+}
+
 export function terminalHeight(n: LogicNode): number {
+  if (isTableTerminal(n)) return ROW_H;
   const { desc, addr, showDesc } = terminalText(n);
   const tagLines = Math.max(1, Math.ceil((n.tag.length + (addr ? addr.length + 2 : 0)) / 22));
   const descLines = showDesc ? Math.max(1, Math.ceil(desc.length / 26)) : 0;
@@ -146,7 +173,7 @@ export function terminalHeight(n: LogicNode): number {
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
-  if (isSymbolGate(n)) return Math.max(48, (n.inputs.length || 1) * 22 + 10);
+  if (isSymbolGate(n)) return Math.max(2, n.inputs.length + 1) * ROW_H;
   return GATE_HEADER + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_ROW + GATE_PAD;
 };
 
@@ -215,25 +242,37 @@ function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, numbe
     cols.get(c)!.push(n);
   }
   const ys = [...drawY.values()];
-  const topY = ys.length ? Math.max(...ys) : 0;
+  const table = nodes.some(isTableTerminal);
+  // Table layout: rows are measured from the topmost sheet row so terminals snap exactly onto the row grid.
+  const termYs = nodes.filter((n) => isTableTerminal(n) && drawY.has(n.id)).map((n) => drawY.get(n.id)!);
+  const topY = table && termYs.length ? Math.max(...termYs) : ys.length ? Math.max(...ys) : 0;
   const hasDrawing = drawY.size === nodes.length && nodes.length > 0;
+  const scale = table ? ROW_H / ROW_UNITS : DRAW_SCALE;
+  const gapY = table ? 0 : GAP_Y;
   // Column x positions from the real widths so terminals and gates sit close together.
   const colX = new Map<number, number>();
   let x = 0;
   for (const c of [...cols.keys()].sort((a, b) => a - b)) {
     colX.set(c, x);
-    x += (cols.get(c)!.some(isTerminal) ? TERMINAL_W : GATE_W) + COL_GAP;
+    x += (cols.get(c)!.some(isTerminal) ? Math.max(...cols.get(c)!.filter(isTerminal).map(terminalWidth)) : GATE_W) + COL_GAP;
   }
   for (const [c, list] of cols) {
     // Order: sheet row (top first) when known, otherwise keep input order.
-    const want = (n: LogicNode, i: number) =>
-      hasDrawing ? (topY - drawY.get(n.id)!) * DRAW_SCALE - nodeHeight(n) / 2 : i * 100;
+    const want = (n: LogicNode, i: number) => {
+      if (!hasDrawing) return i * 100;
+      const dy = topY - drawY.get(n.id)!;
+      if (table && isTableTerminal(n)) return Math.round(dy / ROW_UNITS) * ROW_H - nodeHeight(n) / 2;
+      const top = dy * scale - nodeHeight(n) / 2;
+      // Gate symbols: put the first input handle on a row centre so wires run straight in.
+      if (table && isSymbolGate(n)) return Math.round(top / ROW_H) * ROW_H;
+      return top;
+    };
     const sorted = list.map((n, i) => ({ n, w: want(n, i) })).sort((a, b) => a.w - b.w);
     let y = -Infinity;
     for (const { n, w } of sorted) {
       const top = Math.max(w, y);
       n.position = { x: colX.get(c)!, y: top };
-      y = top + nodeHeight(n) + GAP_Y;
+      y = top + nodeHeight(n) + gapY;
     }
   }
   compressGaps(nodes);
