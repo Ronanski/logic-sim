@@ -50,11 +50,24 @@ export interface LogicEdge {
   to: LogicEdgeEndpoint;
 }
 
+export interface LogicPoint {
+  x: number;
+  y: number;
+}
+
+/** Geometry preserved from an imported drawing. Screen coordinates are produced by graph-json. */
+export interface ImportedGeometry {
+  source: "DXF";
+  edgePaths: Record<string, LogicPoint[]>;
+}
+
 export interface LogicGraph {
   id: string;
   name: string;
   description?: string;
   nodes: LogicNode[];
   edges: LogicEdge[];
+  /** Original DXF path geometry, when available. The renderer should prefer these paths over re-routing. */
+  geometry?: ImportedGeometry;
 }
 

@@ -447,7 +447,7 @@ function SimulatePage() {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
       const val = signals[srcKey];
       const isActive = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
-      const focused = !isRunning && !!focusNets && focusNets.has(`${e.from.nodeId}:${e.from.portId}`);
+      const focused = !!focusNets && focusNets.has(`${e.from.nodeId}:${e.from.portId}`);
       // Idle: thin dark wire like the printed sheet, blue when focused. Running: TRUE wires are blue.
       const blue = isActive || (focused && !hasSignals);
 
@@ -463,12 +463,12 @@ function SimulatePage() {
         style: {
           stroke: blue ? "var(--primary)" : "var(--foreground)",
           strokeWidth: blue || focused ? 2.25 : 1.25,
-          opacity: !isRunning && focusNets && !focused ? 0.18 : 1,
+          opacity: focusNets && !focused ? 0.18 : 1,
           transition: "stroke 150ms ease, stroke-width 150ms ease, opacity 150ms ease",
         },
       };
     });
-  }, [graph, signals, routes, junctions, focusNets, hasSignals, isRunning]);
+  }, [graph, signals, routes, junctions, focusNets, hasSignals]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);
@@ -630,9 +630,9 @@ function SimulatePage() {
           colorMode="light"
           className="paper"
           style={flowTheme}
-          onNodeMouseEnter={(_, n) => { if (!isRunning) setHoverNodeId(n.id); }}
+          onNodeMouseEnter={(_, n) => setHoverNodeId(n.id)}
           onNodeMouseLeave={() => setHoverNodeId(null)}
-          onEdgeMouseEnter={(_, e) => { if (!isRunning) setHoverEdgeId(e.id); }}
+          onEdgeMouseEnter={(_, e) => setHoverEdgeId(e.id)}
           onEdgeMouseLeave={() => setHoverEdgeId(null)}
           fitView
           minZoom={0.1}
@@ -641,7 +641,7 @@ function SimulatePage() {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={16} />
-          <RouteManager edges={graph.edges} onRoutes={setRoutes} />
+          <RouteManager edges={graph.edges} nativeRoutes={graph.geometry?.edgePaths} onRoutes={setRoutes} />
         </ReactFlow>
 
         <aside className={`absolute inset-y-0 left-0 z-10 flex w-72 max-w-[calc(100%-3rem)] flex-col border-r bg-card transition-transform duration-150 ${leftDrawerOpen ? "translate-x-0" : "-translate-x-full"}`}>

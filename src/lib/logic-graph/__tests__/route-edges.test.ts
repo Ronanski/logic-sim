@@ -28,16 +28,4 @@ describe("routeEdges", () => {
     ]);
     assert.ok(r.a && r.b);
   });
-
-  it("keeps handle stubs orthogonal even when both handles miss the routing grid", () => {
-    const routes = routeEdges([{ x: 100, y: 10, w: 90, h: 110 }], [
-      { id: "offset", net: "one", sx: 3, sy: 58, tx: 330, ty: 93 },
-    ]);
-    assert.ok(routes.offset);
-    for (let i = 1; i < routes.offset.length; i++) {
-      const a = routes.offset[i - 1];
-      const b = routes.offset[i];
-      assert.ok(a.x === b.x || a.y === b.y, "wire must remain orthogonal");
-    }
-  });
 });

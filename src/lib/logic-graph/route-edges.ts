@@ -29,11 +29,10 @@ export interface RouteRequest {
 const CELL = 10;
 const STUB = 20;
 const PAD = 100;
-const CLEARANCE = 16;
+const CLEARANCE = 12;
 const BEND = 8;
-const OVERLAP = 400;
-const CROSS = 18;
-const PARALLEL = 12;
+const OVERLAP = 150;
+const CROSS = 3;
 
 class Heap {
   private k: number[] = [];
@@ -134,9 +133,8 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
   const stamp = new Int32Array(N * 2);
   let run = 0;
 
-  // Group branches by net, then route short connections first. A branch can
-  // reuse its own trunk; unrelated wires reserve separate grid lanes.
-  const order = [...reqs].sort((a, b) => a.net.localeCompare(b.net) || (Math.abs(a.tx - a.sx) + Math.abs(a.ty - a.sy)) - (Math.abs(b.tx - b.sx) + Math.abs(b.ty - b.sy)));
+  // Short wires first so long ones route around them.
+  const order = [...reqs].sort((a, b) => Math.abs(a.tx - a.sx) + Math.abs(a.ty - a.sy) - (Math.abs(b.tx - b.sx) + Math.abs(b.ty - b.sy)));
 
   for (const q of order) {
     const net = code(q.net);
@@ -186,13 +184,6 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
         if (same === net) cost = Math.max(0.3, cost - 0.7);
         else if (same !== 0) cost += OVERLAP;
         if (cross !== 0 && cross !== net) cost += CROSS;
-        // Keep adjacent parallel wires apart when there is another free row/column.
-        const neighbors = nAxis === 0 ? [nc - W, nc + W] : [nc - 1, nc + 1];
-        for (const adjacent of neighbors) {
-          if (adjacent < 0 || adjacent >= N || (nAxis === 1 && Math.floor(adjacent / W) !== nj)) continue;
-          const occupant = nAxis === 0 ? usedH[adjacent] : usedV[adjacent];
-          if (occupant !== 0 && occupant !== net) cost += PARALLEL;
-        }
         if (nc === goal && nAxis === 1) cost += BEND;
         const ns = nc * 2 + nAxis;
         const ng = g[s] + cost;
@@ -234,17 +225,28 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
     }
     if (pts.length > 1) corners.push(pts[pts.length - 1]);
 
-    // Connect handles to the grid with orthogonal stubs. Never drag a corner's
-    // coordinates to a handle: that can turn an entire lane into a diagonal.
-    const first = corners[0];
-    const last = corners[corners.length - 1];
-    const full: Pt[] = [
-      { x: q.sx, y: q.sy },
-      { x: first.x, y: q.sy },
-      ...corners,
-      { x: last.x, y: q.ty },
-      { x: q.tx, y: q.ty },
-    ];
+    let poly: Pt[];
+    if (corners.length === 1) corners.push({ ...corners[0] });
+    if (corners.length === 2 && corners[0].y === corners[1].y) {
+      const [a, b] = corners;
+      if (Math.abs(q.sy - q.ty) < 0.5) poly = [{ x: a.x, y: q.sy }, { x: b.x, y: q.ty }];
+      else {
+        const mx = (a.x + b.x) / 2;
+        poly = [{ x: a.x, y: q.sy }, { x: mx, y: q.sy }, { x: mx, y: q.ty }, { x: b.x, y: q.ty }];
+      }
+    } else {
+      poly = corners.map((p) => ({ ...p }));
+      const first = poly[0];
+      const second = poly[1];
+      if (second.y === first.y) second.y = q.sy;
+      first.y = q.sy;
+      const last = poly[poly.length - 1];
+      const prev = poly[poly.length - 2];
+      if (prev.y === last.y) prev.y = q.ty;
+      last.y = q.ty;
+    }
+
+    const full: Pt[] = [{ x: q.sx, y: q.sy }, ...poly, { x: q.tx, y: q.ty }];
     // drop duplicate and collinear points
     const clean: Pt[] = [];
     for (const p of full) {

@@ -5,7 +5,7 @@ import type { LogicEdge } from "@/lib/logic-graph/types";
 import { routeEdges, type Pt, type RouteRequest } from "@/lib/logic-graph/route-edges";
 
 /** Lives inside <ReactFlow>. Once nodes are measured (and after they stop moving) it routes every wire. */
-export function RouteManager({ edges, onRoutes }: { edges: LogicEdge[]; onRoutes: (r: Record<string, Pt[]>) => void }) {
+export function RouteManager({ edges, nativeRoutes, onRoutes }: { edges: LogicEdge[]; nativeRoutes?: Record<string, Pt[]>; onRoutes: (r: Record<string, Pt[]>) => void }) {
   const rf = useReactFlow();
   const sig = useStore((s) => {
     let out = "";
@@ -26,6 +26,7 @@ export function RouteManager({ edges, onRoutes }: { edges: LogicEdge[]; onRoutes
       });
       const reqs: RouteRequest[] = [];
       for (const e of edges) {
+        if (nativeRoutes?.[e.id]?.length >= 2) continue;
         const a = rf.getInternalNode(e.from.nodeId);
         const b = rf.getInternalNode(e.to.nodeId);
         const hs = a?.internals.handleBounds?.source?.find((h) => h.id === e.from.portId);
@@ -40,10 +41,10 @@ export function RouteManager({ edges, onRoutes }: { edges: LogicEdge[]; onRoutes
           ty: b.internals.positionAbsolute.y + ht.y + ht.height / 2,
         });
       }
-      onRoutes(routeEdges(rects, reqs));
+      onRoutes({ ...(nativeRoutes ?? {}), ...routeEdges(rects, reqs) });
     }, 250);
     return () => clearTimeout(t);
-  }, [sig, edges, rf, onRoutes]);
+  }, [sig, edges, nativeRoutes, rf, onRoutes]);
 
   return null;
 }

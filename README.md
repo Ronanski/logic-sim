@@ -1,25 +1,28 @@
-# Diagram Flow
+# LogicSim Dashboard
 
-ito mga wishlist ko:
+Create a web app called "LogicSim": a tool that will later import engineering drawings and simulate control logic. For now, build only the foundation.
 
-- pag run na, dapat hindi na pwede ang hover na nagfefade ang ibang line.
-- yung routing ng lines/wires, ma-improve sana. refer to pdf ss and my webapp sample output ss.
-- yung readability, alignment ng text/description, wag sana sabog sabog.
-- magkaroon ng arrow ng mga lines saan papunta,
-- ung mga wires, wala sana patong patong o magkakadikit. reroute to other grid if possible.
-- refer to photo of my diagram on pdf, see how clean look it is.
-- make it enterprise ready, saas, ui design layout
-- no changing of backend, engines, only change UI or design.
+DESIGN RULES (save in DESIGN.md and follow in every future change):
 
-i want this to change professional look, kasi kung ikaw tatanungin ko, kung gagamitin mo app na to, gugustuhin mo ba?
+- shadcn/ui components only
 
-simulan na sa wire routing at arrow markers, kasunod ang tabular alignment ng input/output terminals; UI at design lang ang baguhin, huwag galawin ang backend o simulation engine.
+- Dark industrial dashboard style, one blue accent color, neutral grays
+
+- Inter font, 8px spacing, rounded-md corners
+
+- Clean and minimal, no gradients, no decorative animations
+
+PROJECT NOTES: create PROJECT_NOTES.md tracking what is done and what is next. Update it after every change.
+
+LAYOUT: top bar with app name, left sidebar (Import, Review, Simulate), main area. Only Simulate has content for now.
+
+No backend or authentication yet.
 
 This project was built with [Lovable](https://lovable.dev).
 
 ## Build with Lovable
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/d73d6a9a-8207-44de-a32e-858a4dbd0a24).
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/cc0bb960-d599-4f92-b43c-dd2538059fbb).
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
 - **Stay in sync**: every change made in Lovable is committed straight to this repository.
@@ -35,3 +38,4 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+

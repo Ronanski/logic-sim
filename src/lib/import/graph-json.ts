@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { LogicEdge, LogicGraph, LogicNode, LogicNodeType, LogicParamValue, LogicPort } from "@/lib/logic-graph/types";
+import type { LogicEdge, LogicGraph, LogicNode, LogicNodeType, LogicParamValue, LogicPort, LogicPoint, ImportedGeometry } from "@/lib/logic-graph/types";
 import type { ReviewItem } from "@/lib/review/review-store";
 import sampleJson from "./samples/ditl-03a.graph.json";
 
@@ -40,6 +40,15 @@ const schema = z.object({
       }),
     )
     .max(10000),
+  geometry: z
+    .object({
+      source: z.literal("DXF"),
+      edgePaths: z.record(
+        z.string(),
+        z.array(z.object({ x: z.number(), y: z.number() })),
+      ),
+    })
+    .optional(),
 });
 
 const bool = (id: string, name: string): LogicPort => ({ id, name, dataType: "bool" });
@@ -106,7 +115,7 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 /** Sizes in canvas units. They must match logic-node.tsx. */
 export const TERMINAL_W = 420;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
-export const TERMINAL_H = 64;
+export const TERMINAL_H = 48;
 export const GATE_W = 88;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
@@ -345,7 +354,37 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     });
   });
 
-  layout(nodes, edges, drawY, drawX);
+  let geometry: ImportedGeometry | undefined;
+  const rawGeometry = parsed.data.geometry;
+  if (rawGeometry && Object.keys(rawGeometry.edgePaths).length && drawX.size === nodes.length && drawY.size === nodes.length) {
+    // Keep the DXF's relative geometry. Do not run layoutSheet(), gap compression, or column reflow on imported drawings.
+    const xs = nodes.map((n) => drawX.get(n.id)!);
+    const ys = nodes.map((n) => drawY.get(n.id)!);
+    const edgePoints = Object.values(rawGeometry.edgePaths).flat();
+    const allX = [...xs, ...edgePoints.map((p) => p.x)];
+    const allY = [...ys, ...edgePoints.map((p) => p.y)];
+    const minX = Math.min(...allX);
+    const maxY = Math.max(...allY);
+    // DCS drawing units are intentionally kept close to screen units. The whole sheet can then be fitView'ed.
+    const SCALE = 1.35;
+    for (const n of nodes) {
+      const dx = drawX.get(n.id)!;
+      const dy = drawY.get(n.id)!;
+      const x = (dx - minX) * SCALE;
+      const y = (maxY - dy) * SCALE;
+      // Parser positions are drawing anchors/centers. ReactFlow positions are top-left coordinates.
+      if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - nodeHeight(n) / 2 };
+      else if (n.type === "DO") n.position = { x, y: y - nodeHeight(n) / 2 };
+      else n.position = { x: x - GATE_W / 2, y: y - nodeHeight(n) / 2 };
+    }
+    const edgePaths: Record<string, LogicPoint[]> = {};
+    for (const [id, pts] of Object.entries(rawGeometry.edgePaths)) {
+      edgePaths[id] = pts.map((p) => ({ x: (p.x - minX) * SCALE, y: (maxY - p.y) * SCALE }));
+    }
+    geometry = { source: "DXF", edgePaths };
+  } else {
+    layout(nodes, edges, drawY, drawX);
+  }
 
   const items: ReviewItem[] = nodes
     .filter((n) => n.needsReview)
@@ -360,7 +399,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     }));
 
   const safeName = stripNonEnglish(name) || "Graph JSON";
-  return { graph: { id: "json-import", name: safeName, nodes, edges }, items };
+  return { graph: { id: "json-import", name: safeName, nodes, edges, ...(geometry ? { geometry } : {}) }, items };
 }
 
 export const SAMPLE_GRAPH_JSON = JSON.stringify(sampleJson, null, 2);

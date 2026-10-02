@@ -9,6 +9,11 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-# LogicSim architecture
-- Keep the uploaded LogicSim UI and simulation engine together in `src`; changes to wire routing belong in the presentation-side orthogonal router, not in signal evaluation, so simulation behavior stays intact.
-- Use the uploaded design system and component patterns for new UI; the paper diagram is the only light surface, preserving the existing industrial shell.
+# LogicSim workflow rules
+- Design system rules in DESIGN.md apply to every change; never hardcode colors or add gradients/decorative animations.
+- Update PROJECT_NOTES.md (Done / Next) after every change.
+
+- Drawing parsing goes through a single server function `parseDrawing(file)` that reads PARSER_API_URL inside the handler and falls back to a mock graph; keeps the secret server-side and the UI working without a parser.
+
+- Graph JSON imports are converted client-side by `convertGraphJson` in src/lib/import/graph-json.ts into the internal LogicGraph (port ids remapped to engine conventions); needsReview items are advisory so they never block Simulate.
+- Keep Simulate canvas-first: controls belong in the slim toolbar and inspectors belong in overlay drawers so the graph retains the full workspace.
