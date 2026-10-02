@@ -9,6 +9,9 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { RoutedEdge } from "@/components/logic-graph/routed-edge";
+import { RouteManager } from "@/components/logic-graph/route-manager";
+import type { Pt } from "@/lib/logic-graph/route-edges";
 import {
   Activity,
   ChevronDown,
@@ -80,6 +83,7 @@ export const Route = createFileRoute("/simulate")({
 });
 
 const nodeTypes = { logic: LogicNodeView };
+const edgeTypes = { routed: RoutedEdge };
 
 const flowTheme = {
   "--xy-background-color": "var(--background)",
@@ -156,6 +160,7 @@ function SimulatePage() {
   const [graphs, setGraphs] = useState<LogicGraph[]>(() => (imported ? [imported, ...sampleGraphs] : sampleGraphs));
   const [graphId, setGraphId] = useState(imported?.id ?? defaultGraph.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<Record<string, Pt[]>>({});
   const [flowNodes, setFlowNodes] = useState<LogicFlowNode[]>(() => toFlowNodes(imported ?? defaultGraph));
 
   // Simulation execution state
@@ -314,7 +319,7 @@ function SimulatePage() {
 
   // Active wire calculation
   const edges: Edge[] = useMemo(() => {
-    return graph.edges.map((e, idx) => {
+    return graph.edges.map((e) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
       const val = signals[srcKey];
       const isActive = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
@@ -325,9 +330,8 @@ function SimulatePage() {
         sourceHandle: e.from.portId,
         target: e.to.nodeId,
         targetHandle: e.to.portId,
-        type: "smoothstep",
-        // Spread the vertical channels so parallel wires do not sit on top of each other.
-        pathOptions: { offset: 16 + (idx % 8) * 8, borderRadius: 4 },
+        type: "routed",
+        data: { points: routes[e.id] },
         animated: isActive,
         style: {
           stroke: isActive ? "var(--primary)" : "var(--muted-foreground)",
@@ -336,13 +340,14 @@ function SimulatePage() {
         },
       };
     });
-  }, [graph, signals]);
+  }, [graph, signals, routes]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);
     if (!next) return;
     setIsRunning(false);
     setGraphId(id);
+    setRoutes({});
     setSelectedId(null);
     setFlowNodes(toFlowNodes(next));
   };
@@ -481,6 +486,7 @@ function SimulatePage() {
           nodes={flowNodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onInit={(instance) => { flowInstanceRef.current = instance; }}
           onNodesChange={onNodesChange}
           onNodeClick={(_, n) => { setSelectedId(n.id); setRightDrawerOpen(true); if (isMobile) setLeftDrawerOpen(false); }}
@@ -491,6 +497,7 @@ function SimulatePage() {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={16} />
+          <RouteManager edges={graph.edges} onRoutes={setRoutes} />
         </ReactFlow>
 
         <aside className={`absolute inset-y-0 left-0 z-10 flex w-72 max-w-[calc(100%-3rem)] flex-col border-r bg-card transition-transform duration-150 ${leftDrawerOpen ? "translate-x-0" : "-translate-x-full"}`}>
