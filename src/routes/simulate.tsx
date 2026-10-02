@@ -22,7 +22,9 @@ import {
   Expand,
   Focus,
   Gauge,
+  Maximize2,
   Minimize,
+  Minimize2,
   Pause,
   Play,
   RotateCcw,
@@ -67,6 +69,8 @@ import { Link } from "@tanstack/react-router";
 import { ShieldAlert } from "lucide-react";
 import { blockingCount, reviewActions, useReview } from "@/lib/review/review-store";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSidebar } from "@/components/ui/sidebar";
+import { focusMode, useFocusMode } from "@/lib/focus-mode";
 
 export const Route = createFileRoute("/simulate")({
   head: () => ({
@@ -178,6 +182,12 @@ function SimulatePage() {
   const [monitorOpen, setMonitorOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const focus = useFocusMode();
+  const { open: appSidebarOpen, setOpen: setAppSidebarOpen } = useSidebar();
+  const prevSidebarOpen = useRef(appSidebarOpen);
+  const setAppSidebarOpenRef = useRef(setAppSidebarOpen);
+  setAppSidebarOpenRef.current = setAppSidebarOpen;
   const flowInstanceRef = useRef<ReactFlowInstance<LogicFlowNode, Edge> | null>(null);
   const leftOpenRef = useRef(false);
   const rightOpenRef = useRef(false);
@@ -306,6 +316,58 @@ function SimulatePage() {
     setLeftDrawerOpen(false);
     setRightDrawerOpen(false);
   }, [isMobile]);
+
+  // Simulate is canvas-first: collapse the app sidebar while here and restore it on leave.
+  useEffect(() => {
+    setAppSidebarOpenRef.current(false);
+    const restore = prevSidebarOpen.current;
+    return () => {
+      focusMode.set(false);
+      setAppSidebarOpenRef.current(restore);
+    };
+  }, []);
+
+  // Auto-fit whenever the canvas itself changes size (sidebar, header, window, fullscreen).
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      if (first) {
+        first = false;
+        return;
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => fitAll(200), 250);
+    });
+    ro.observe(el);
+    return () => {
+      clearTimeout(timer);
+      ro.disconnect();
+    };
+  }, [fitAll]);
+
+  // Esc leaves focus mode.
+  useEffect(() => {
+    if (!focus) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") focusMode.set(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focus]);
+
+  const toggleFocus = () => {
+    const next = !focus;
+    focusMode.set(next);
+    if (next) {
+      setAppSidebarOpen(false);
+      setLeftDrawerOpen(false);
+      setRightDrawerOpen(false);
+      setMonitorOpen(false);
+    }
+  };
 
   // Run / Pause / Step / Reset controls
   const handleRun = () => setIsRunning(true);
@@ -496,10 +558,15 @@ function SimulatePage() {
           <Badge variant={isRunning ? "default" : "secondary"} className="text-xs">
             {isRunning ? "Running (100ms)" : cycle > 0 ? "Paused" : "Idle"}
           </Badge>
-          <span className="text-xs text-muted-foreground">Cycle #{cycle}</span>
+          <span className="text-xs text-muted-foreground">
+              Cycle #{cycle}{reviewCount > 0 ? ` · ${reviewCount} to review` : ""}
+            </span>
           </div>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => fitAll()} aria-label="Fit view" title="Fit view">
             <Focus />
+          </Button>
+          <Button size="icon" variant={focus ? "secondary" : "ghost"} className="h-8 w-8" onClick={toggleFocus} aria-label={focus ? "Exit focus mode" : "Focus mode"} title={focus ? "Exit focus mode (Esc)" : "Focus mode: hide sidebar and header"}>
+            {focus ? <Minimize2 /> : <Maximize2 />}
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
             {isFullscreen ? <Minimize /> : <Expand />}
@@ -521,7 +588,7 @@ function SimulatePage() {
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1" style={flowTheme}>
+      <div ref={canvasRef} className="relative min-h-0 flex-1" style={flowTheme}>
         <ReactFlow
           key={graphId}
           nodes={displayNodes}
@@ -740,12 +807,6 @@ function SimulatePage() {
             </div>
           </div>
         </section>
-
-        <div className="pointer-events-none absolute bottom-14 left-1/2 z-10 -translate-x-1/2">
-          <Badge variant={isRunning ? "default" : "secondary"} className="text-xs">
-            {isRunning ? "Running" : cycle > 0 ? "Paused" : "Idle"} · Cycle {cycle} · {reviewCount} review
-          </Badge>
-        </div>
       </div>
     </div>
   );

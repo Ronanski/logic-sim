@@ -16,6 +16,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { useFocusMode } from "@/lib/focus-mode";
 
 function NotFoundComponent() {
   return (
@@ -126,12 +127,14 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const focus = useFocusMode();
 
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
+          {!focus && (
           <header className="flex h-14 shrink-0 items-center gap-4 border-b px-4">
             <SidebarTrigger />
             <Separator orientation="vertical" className="h-5" />
@@ -143,6 +146,7 @@ function RootComponent() {
               Foundation
             </Badge>
           </header>
+          )}
           <main className="flex-1 overflow-hidden">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />

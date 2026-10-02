@@ -106,3 +106,8 @@
   }
 }
 
+
+/* Wires keep a constant on-screen thickness so they stay visible when the sheet is zoomed out. */
+.react-flow__edge-path {
+  vector-effect: non-scaling-stroke;
+}

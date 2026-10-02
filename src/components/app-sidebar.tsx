@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Activity, FileUp, ListChecks, Settings } from "lucide-react";
 
+import { useFocusMode } from "@/lib/focus-mode";
 import {
   Sidebar,
   SidebarContent,
@@ -24,8 +25,10 @@ export function AppSidebar() {
     select: (router) => router.location.pathname,
   });
 
+  const focus = useFocusMode();
+
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible={focus ? "offcanvas" : "icon"}>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Workflow</SidebarGroupLabel>
