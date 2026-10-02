@@ -127,14 +127,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           return (
             <div key={p.id}>
               <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${top}%` }} />
-              {n > 1 && (
-                <span
-                  className="absolute left-2 text-muted-foreground"
-                  style={{ top: `calc(${top}% - 10px)`, fontSize: 11 * b, lineHeight: "20px" }}
-                >
-                  {p.name}
-                </span>
-              )}
+              {/* Port IDs (I1/I2/I3...) are intentionally hidden to keep the imported DCS sheet clean. */}
             </div>
           );
         })}
