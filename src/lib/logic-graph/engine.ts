@@ -266,7 +266,7 @@ export function evaluateBlock(
     case "TON": {
       // On-delay timer
       const inVal = toBool(inputs.in);
-      const presetSec = toNum(params.presetSeconds ?? params.pt, 5);
+      const presetSec = toNum(params.presetSeconds ?? params.durationSec ?? params.pt, 5);
       const presetMs = Math.max(0, presetSec * 1000);
 
       let elapsedMs = state.ton?.elapsedMs ?? 0;
@@ -281,6 +281,25 @@ export function evaluateBlock(
       }
 
       nextState.ton = { elapsedMs, q };
+      outputs.q = q;
+      outputs.et = Number((elapsedMs / 1000).toFixed(2));
+      break;
+    }
+
+    case "TOF": {
+      // Off-delay timer: Q follows IN immediately on rising, holds for presetSeconds after IN falls
+      const inVal = toBool(inputs.in);
+      const presetMs = Math.max(0, toNum(params.presetSeconds ?? params.durationSec, 1) * 1000);
+      const prev = (state.tof as { elapsedMs: number; q: boolean } | undefined) ?? { elapsedMs: 0, q: false };
+      let { elapsedMs, q } = prev;
+      if (inVal) {
+        q = true;
+        elapsedMs = 0;
+      } else if (q) {
+        elapsedMs = Math.min(presetMs, elapsedMs + dtMs);
+        if (elapsedMs >= presetMs) q = false;
+      }
+      nextState.tof = { elapsedMs, q };
       outputs.q = q;
       outputs.et = Number((elapsedMs / 1000).toFixed(2));
       break;

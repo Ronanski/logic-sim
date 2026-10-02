@@ -50,6 +50,7 @@ interface Mapped {
   /** JSON port id -> internal port id */
   portMap: Record<string, string>;
   params: Record<string, LogicParamValue>;
+  forceReview?: boolean;
 }
 
 function mapNode(type: string, params: Record<string, LogicParamValue>, ports: { id: string; dir: "in" | "out" }[]): Mapped {
@@ -72,15 +73,23 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
     portMap.Q = "q";
     return { type: "SR", inputs: [bool("s", "S"), bool("r", "R")], outputs: [bool("q", "Q")], portMap, params };
   }
-  if (t === "TIMER" || t === "TP") {
+  if (t === "TON" || t === "TOF" || t === "TP" || t === "TIMER") {
     ins.slice(0, 1).forEach((p) => (portMap[p.id] = "in"));
     outs.forEach((p) => (portMap[p.id] = "q"));
     const durationSec = typeof params.durationSec === "number" ? params.durationSec : Number(params.durationSec) || 1;
-    return { type: "TP", inputs: [bool("in", "IN")], outputs: [bool("q", "Q")], portMap, params: { ...params, durationSec } };
+    const mapped: LogicNodeType = t === "TIMER" ? "TP" : (t as LogicNodeType);
+    return {
+      type: mapped,
+      inputs: [bool("in", "IN")],
+      outputs: [bool("q", "Q")],
+      portMap,
+      params: { ...params, durationSec },
+    };
   }
   // AND / OR / NOT and anything unknown keep their own input ports; single output is "out".
   const known: LogicNodeType[] = ["AND", "OR", "NOT"];
-  const mappedType: LogicNodeType = known.includes(t as LogicNodeType) ? (t as LogicNodeType) : "AND";
+  const isKnown = known.includes(t as LogicNodeType);
+  const mappedType: LogicNodeType = isKnown ? (t as LogicNodeType) : "AND";
   ins.forEach((p) => (portMap[p.id] = p.id));
   outs.forEach((p) => (portMap[p.id] = "out"));
   return {
@@ -88,7 +97,8 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
     inputs: ins.map((p) => bool(p.id, stripNonEnglish(p.id))),
     outputs: [bool("out", "OUT")],
     portMap,
-    params,
+    params: isKnown ? params : { ...params, unknownType: type },
+    forceReview: !isKnown,
   };
 }
 
@@ -177,8 +187,8 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
       params: m.params,
       inputs: m.inputs,
       outputs: m.outputs,
-      confidence: rn.confidence,
-      needsReview: rn.needsReview,
+      confidence: m.forceReview ? Math.min(rn.confidence, 0.3) : rn.confidence,
+      needsReview: rn.needsReview || !!m.forceReview,
     };
   });
 

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { SAMPLE_GRAPH_JSON, convertGraphJson } from "@/lib/import/graph-json";
 import { ALLOWED_EXTENSIONS, MAX_FILE_BYTES, parseDrawing } from "@/lib/import/parse-drawing.functions";
 import { reviewActions } from "@/lib/review/review-store";
+import { importDxf, type DxfImportResult } from "@/lib/import/dxf-batch";
 
 export const Route = createFileRoute("/import")({
   head: () => ({
@@ -57,13 +58,41 @@ function ImportPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [batch, setBatch] = useState<DxfImportResult[]>([]);
   const busy = status === "uploading" || status === "converting" || status === "parsing";
+
+  async function handleDxfBatch(list: File[]) {
+    setError(null);
+    setBatch([]);
+    setFileName(`${list.length} DXF file${list.length > 1 ? "s" : ""}`);
+    setStatus("parsing");
+    const results: DxfImportResult[] = [];
+    for (const f of list) {
+      const problem = validate(f);
+      results.push(
+        problem
+          ? { fileName: f.name, ok: false, error: problem, items: [], report: [], check: true, counts: { inputs: 0, outputs: 0, gates: 0 } }
+          : await importDxf(f),
+      );
+      setBatch([...results]);
+    }
+    setStatus("done");
+    if (results.length === 1 && results[0].ok && results[0].graph) {
+      reviewActions.loadImport(results[0].graph, results[0].items);
+      setTimeout(() => navigate({ to: "/review" }), 400);
+    }
+  }
 
   async function handleFiles(files: FileList | null) {
     if (busy || !files?.length) return;
+    const all = Array.from(files);
+    if (all.every((f) => f.name.toLowerCase().endsWith(".dxf"))) {
+      void handleDxfBatch(all);
+      return;
+    }
     if (files.length > 1) {
       setStatus("failed");
-      setError("Drop one drawing at a time.");
+      setError("Drop several .dxf files at once, or one .dwg / .pdf at a time.");
       return;
     }
     const file = files[0];
@@ -108,7 +137,7 @@ function ImportPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Import</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Upload one engineering drawing (.dxf, .dwg or .pdf, up to {MAX_FILE_BYTES / 1048576} MB).
+          Upload .dxf drawings (several at once is fine), or one .dwg / .pdf (up to {MAX_FILE_BYTES / 1048576} MB each). DXF files are read in your browser.
         </p>
       </div>
 
@@ -142,6 +171,7 @@ function ImportPage() {
           ref={inputRef}
           type="file"
           accept={ALLOWED_EXTENSIONS.join(",")}
+          multiple
           className="hidden"
           onChange={(e) => {
             void handleFiles(e.target.files);
@@ -191,8 +221,49 @@ function ImportPage() {
                 );
               })}
             </ol>
-            {status === "done" && (
+            {status === "done" && batch.length <= 1 && (
               <p className="mt-4 text-xs text-muted-foreground">Opening Review…</p>
+            )}
+            {batch.length > 0 && (
+              <div className="mt-4 flex flex-col gap-2">
+                {batch.map((r) => (
+                  <div key={r.fileName} className="flex flex-col gap-2 rounded-md border p-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{r.fileName}</span>
+                      <div className="flex items-center gap-2">
+                        {r.ok && (
+                          <span className="text-muted-foreground">
+                            {r.counts.inputs} in · {r.counts.gates} blocks · {r.counts.outputs} out
+                          </span>
+                        )}
+                        <Badge variant={r.check ? "destructive" : "default"}>{r.check ? "check" : "ok"}</Badge>
+                        {r.ok && r.graph && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            onClick={() => {
+                              reviewActions.loadImport(r.graph!, r.items);
+                              navigate({ to: "/review" });
+                            }}
+                          >
+                            Open
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    {r.error && <p className="text-destructive">{r.error}</p>}
+                    {r.report.length > 0 && (
+                      <ul className="list-disc pl-4 text-muted-foreground">
+                        {r.report.slice(0, 6).map((line, i) => (
+                          <li key={i}>{line}</li>
+                        ))}
+                        {r.report.length > 6 && <li>+{r.report.length - 6} more</li>}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>

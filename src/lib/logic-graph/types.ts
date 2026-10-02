@@ -18,6 +18,7 @@ export type LogicNodeType =
   | "NOT"
   | "SR" // set/reset latch
   | "TON" // on-delay timer
+  | "TOF" // off-delay timer
   | "TP" // pulse timer
   | "PID"
   | "COMP" // comparator
