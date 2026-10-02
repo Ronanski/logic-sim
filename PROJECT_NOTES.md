@@ -40,6 +40,7 @@ Update this file after every change.
 - [x] 2026-10-02 — Timers: graph JSON `TON` / `TOF` / `TP` map to their own engine blocks (TIMER stays TP); new `TOF` off-delay block in the engine; TON also reads `durationSec`; parser maps `PULSE DELAY` to TP (seen on DITL-13)
 - [x] 2026-10-02 — Unknown node types in graph JSON are flagged `needsReview` (low confidence) instead of silently becoming AND
 - [x] 2026-10-02 — Tests: `src/lib/import/__tests__/dxf-import.test.ts` (fixtures: DITL-03A, 03B, 13 DXF): 03B = 5 inputs, AND -> TON 60 s, 16 outputs, no report lines
+- [x] 2026-10-02 — Imported DXF layout follows the sheet: parser now outputs each node's drawing position; vertical order/rows come from the drawing (overlaps pushed down), inputs/outputs are compact 56 px boxes, column spacing 340 px, wire channels spread (`pathOptions.offset`) so parallel wires are traceable
 
 ## Next
 - [ ] DWG: convert to DXF outside the app (e.g. ODA File Converter) or add a DWG reader; PARSER_API_URL path is now only needed for .dwg / .pdf

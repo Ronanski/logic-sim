@@ -314,7 +314,7 @@ function SimulatePage() {
 
   // Active wire calculation
   const edges: Edge[] = useMemo(() => {
-    return graph.edges.map((e) => {
+    return graph.edges.map((e, idx) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
       const val = signals[srcKey];
       const isActive = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
@@ -326,6 +326,8 @@ function SimulatePage() {
         target: e.to.nodeId,
         targetHandle: e.to.portId,
         type: "smoothstep",
+        // Spread the vertical channels so parallel wires do not sit on top of each other.
+        pathOptions: { offset: 16 + (idx % 8) * 8, borderRadius: 4 },
         animated: isActive,
         style: {
           stroke: isActive ? "var(--primary)" : "var(--muted-foreground)",

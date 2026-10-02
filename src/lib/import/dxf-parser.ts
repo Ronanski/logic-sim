@@ -61,6 +61,8 @@ export interface GraphNode {
   ports: { id: string; dir: "in" | "out" }[];
   confidence: number;
   needsReview: boolean;
+  /** Position on the drawing (DXF units, y up). Keeps the on-screen layout close to the sheet. */
+  pos?: { x: number; y: number };
 }
 export interface GraphEdge {
   from: { node: string; port: string };
@@ -547,9 +549,9 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
   const addNode = (id: string, tag: string, type: string, params: Record<string, unknown>,
-                   ports: GraphNode["ports"], review = false, conf = 1.0): string => {
+                   ports: GraphNode["ports"], review = false, conf = 1.0, pos?: { x: number; y: number }): string => {
     while (nodeIds.has(id)) id += "b";
-    nodes.push({ id, tag, type, params, ports, confidence: conf, needsReview: review });
+    nodes.push({ id, tag, type, params, ports, confidence: conf, needsReview: review, ...(pos ? { pos } : {}) });
     nodeIds.add(id);
     return id;
   };
@@ -563,7 +565,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
         .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
       pts = [...ins.map((p) => ({ id: p, dir: "in" as const })), { id: "O1", dir: "out" as const }];
     }
-    addNode(g.id, g.type.replace("_LATCH", ""), g.type, g.params ?? {}, pts, g.review ?? false);
+    addNode(g.id, g.type.replace("_LATCH", ""), g.type, g.params ?? {}, pts, g.review ?? false, 1.0, { x: g.x, y: g.y });
   });
 
   const sourceOf = new Map<number, [string, string][]>();
@@ -599,13 +601,13 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     let sid = tag ? `IN-${base}${tag.startsWith("(") ? "-alt" : ""}` : `IN-${inI}`;
     const params: Record<string, unknown> = { description: desc, role: "input" };
     if (addr) params.address = addr;
-    sid = addNode(sid, tag || desc || sid, "signal", params, [{ id: "O1", dir: "out" }], !(tag || desc));
+    sid = addNode(sid, tag || desc || sid, "signal", params, [{ id: "O1", dir: "out" }], !(tag || desc), 1.0, { x, y });
     let src: [string, string] = [sid, "O1"];
     if (timer) {
       const taddr = tx.find((t) => addrRe.test(t.text) && Math.abs(t.y - y) <= S.row_band && x < t.x && t.x < x + 60)?.text ?? "";
       const tid = addNode(`TIMER-${timer.text}`, timer.text, "TIMER",
         { kind: "pulse", durationSec: S.pulse_default_sec, address: taddr },
-        [{ id: "I1", dir: "in" }, { id: "O1", dir: "out" }], true, 0.5);
+        [{ id: "I1", dir: "in" }, { id: "O1", dir: "out" }], true, 0.5, { x, y });
       edges.push({ from: { node: sid, port: "O1" }, to: { node: tid, port: "I1" } });
       src = [tid, "O1"];
     }
@@ -622,7 +624,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     outI += 1;
     const params: Record<string, unknown> = { description: desc, role: "output" };
     if (addr) params.address = addr;
-    const oid = addNode(`OUT-${outI}`, desc || `OUT-${outI}`, "signal", params, [{ id: "I1", dir: "in" }], !desc);
+    const oid = addNode(`OUT-${outI}`, desc || `OUT-${outI}`, "signal", params, [{ id: "I1", dir: "in" }], !desc, 1.0, { x, y: terminals[ti].y });
     lst(sinkOf, root).push([oid, "I1"]);
   }
 

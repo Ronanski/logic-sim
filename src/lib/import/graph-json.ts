@@ -28,6 +28,7 @@ const schema = z.object({
         ports: z.array(z.object({ id: z.string().min(1).max(50), dir: z.enum(["in", "out"]) })).default([]),
         confidence: z.number().min(0).max(1).default(1),
         needsReview: z.boolean().default(false),
+        pos: z.object({ x: z.number(), y: z.number() }).optional(),
       }),
     )
     .max(2000),
@@ -102,12 +103,22 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
   };
 }
 
-const COL_W = 280;
-const GAP_Y = 24;
-const nodeHeight = (n: LogicNode) => 32 + Math.max(n.inputs.length, n.outputs.length, 1) * 24 + 8 + 24 + 16;
+const COL_W = 340;
+const GAP_Y = 16;
+/** Screen pixels per drawing unit (sheet rows are ~9 units apart). */
+const DRAW_SCALE = 7;
+const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
+/** Must match the rendered height in logic-node.tsx. */
+export const TERMINAL_HEIGHT = 56;
+const nodeHeight = (n: LogicNode) =>
+  isTerminal(n) ? TERMINAL_HEIGHT : 32 + Math.max(n.inputs.length, n.outputs.length, 1) * 24 + 8 + 24 + 16;
 
-/** Left-to-right layout: inputs first column, gates by depth, outputs last column. */
-function layout(nodes: LogicNode[], edges: LogicEdge[]) {
+/**
+ * Left-to-right layout. Columns come from signal depth (inputs, gates, outputs).
+ * Vertical order follows the drawing: each node sits at its sheet row, and nodes
+ * that would overlap are pushed down, so the picture reads like the original sheet.
+ */
+function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, number>) {
   const depth = new Map<string, number>();
   const preds = new Map<string, string[]>();
   for (const n of nodes) preds.set(n.id, []);
@@ -127,7 +138,7 @@ function layout(nodes: LogicNode[], edges: LogicEdge[]) {
     if (n.type === "DI") depth.set(n.id, 0);
   }
   for (const n of nodes) if (n.type !== "DO") d(n.id);
-  const gateDepths = nodes.filter((n) => n.type !== "DI" && n.type !== "DO").map((n) => depth.get(n.id) ?? 1);
+  const gateDepths = nodes.filter((n) => !isTerminal(n)).map((n) => depth.get(n.id) ?? 1);
   const outCol = Math.max(1, ...gateDepths) + 1;
   for (const n of nodes) {
     if (n.type === "DI") depth.set(n.id, 0);
@@ -140,11 +151,19 @@ function layout(nodes: LogicNode[], edges: LogicEdge[]) {
     if (!cols.has(c)) cols.set(c, []);
     cols.get(c)!.push(n);
   }
+  const ys = [...drawY.values()];
+  const topY = ys.length ? Math.max(...ys) : 0;
+  const hasDrawing = drawY.size === nodes.length && nodes.length > 0;
   for (const [c, list] of cols) {
-    let y = 0;
-    for (const n of list) {
-      n.position = { x: c * COL_W, y };
-      y += nodeHeight(n) + GAP_Y;
+    // Order: sheet row (top first) when known, otherwise keep input order.
+    const want = (n: LogicNode, i: number) =>
+      hasDrawing ? (topY - drawY.get(n.id)!) * DRAW_SCALE - nodeHeight(n) / 2 : i * 100;
+    const sorted = list.map((n, i) => ({ n, w: want(n, i) })).sort((a, b) => a.w - b.w);
+    let y = -Infinity;
+    for (const { n, w } of sorted) {
+      const top = Math.max(w, y);
+      n.position = { x: c * COL_W, y: top };
+      y = top + nodeHeight(n) + GAP_Y;
     }
   }
 }
@@ -172,6 +191,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
   const { nodes: rawNodes, edges: rawEdges } = parsed.data;
 
   const portMaps = new Map<string, Record<string, string>>();
+  const drawY = new Map<string, number>();
   const nodes: LogicNode[] = rawNodes.map((rn) => {
     const params: Record<string, LogicParamValue> = {};
     for (const [k, v] of Object.entries(rn.params)) {
@@ -180,6 +200,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     }
     const m = mapNode(rn.type, params, rn.ports);
     portMaps.set(rn.id, m.portMap);
+    if (rn.pos) drawY.set(rn.id, rn.pos.y);
     return {
       id: rn.id,
       tag: stripNonEnglish(rn.tag) || stripNonEnglish(rn.id),
@@ -203,7 +224,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     });
   });
 
-  layout(nodes, edges);
+  layout(nodes, edges, drawY);
 
   const items: ReviewItem[] = nodes
     .filter((n) => n.needsReview)

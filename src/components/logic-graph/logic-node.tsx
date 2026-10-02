@@ -13,6 +13,34 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   const { node } = data;
   const rows = Math.max(node.inputs.length, node.outputs.length, 1);
 
+  if (node.type === "DI" || node.type === "DO") {
+    const desc = typeof node.params.description === "string" ? node.params.description : "";
+    return (
+      <div
+        className={cn(
+          "relative flex w-56 flex-col justify-center rounded-md border bg-card px-4 text-card-foreground",
+          selected && "border-primary",
+        )}
+        style={{ height: 56 }}
+        title={desc || node.tag}
+      >
+        {node.inputs.map((p) => (
+          <Handle key={p.id} type="target" position={Position.Left} id={p.id} />
+        ))}
+        {node.outputs.map((p) => (
+          <Handle key={p.id} type="source" position={Position.Right} id={p.id} />
+        ))}
+        <span className="flex items-center gap-2 text-xs font-semibold">
+          {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
+          <span className="truncate">{node.tag}</span>
+        </span>
+        {desc && desc !== node.tag && (
+          <span className="line-clamp-2 text-[10px] leading-4 text-muted-foreground">{desc}</span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
