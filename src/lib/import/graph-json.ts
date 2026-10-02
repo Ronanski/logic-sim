@@ -103,15 +103,49 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
   };
 }
 
-const COL_W = 340;
-const GAP_Y = 16;
-/** Screen pixels per drawing unit (sheet rows are ~9 units apart). */
-const DRAW_SCALE = 7;
+/** Sizes in canvas units. They must match logic-node.tsx. */
+export const TERMINAL_W = 232;
+export const TERMINAL_H = 44;
+export const GATE_W = 112;
+const GATE_HEADER = 28;
+const PORT_ROW = 20;
+const GATE_PAD = 8;
+/** Space between columns, used by the wire router for its channels. */
+const COL_GAP = 80;
+const GAP_Y = 12;
+/** Screen units per drawing unit (sheet rows are ~9 units apart). */
+const DRAW_SCALE = 6;
+/** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
+const MAX_BAND_GAP = 40;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
-/** Must match the rendered height in logic-node.tsx. */
-export const TERMINAL_HEIGHT = 56;
-const nodeHeight = (n: LogicNode) =>
-  isTerminal(n) ? TERMINAL_HEIGHT : 32 + Math.max(n.inputs.length, n.outputs.length, 1) * 24 + 8 + 24 + 16;
+export const nodeHeight = (n: LogicNode) =>
+  isTerminal(n) ? TERMINAL_H : GATE_HEADER + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_ROW + GATE_PAD;
+
+function compressGaps(nodes: LogicNode[]) {
+  const iv = nodes.map((n) => [n.position!.y, n.position!.y + nodeHeight(n)] as [number, number]).sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const r of iv) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+  const cuts: { from: number; shift: number }[] = [];
+  let total = 0;
+  for (let i = 1; i < merged.length; i++) {
+    const gap = merged[i][0] - merged[i - 1][1];
+    if (gap > MAX_BAND_GAP) {
+      total += gap - MAX_BAND_GAP;
+      cuts.push({ from: merged[i][0], shift: total });
+    }
+  }
+  const top = merged.length ? merged[0][0] : 0;
+  for (const n of nodes) {
+    const y = n.position!.y;
+    let shift = 0;
+    for (const c of cuts) if (y >= c.from) shift = c.shift;
+    n.position = { x: n.position!.x, y: y - shift - top };
+  }
+}
 
 /**
  * Left-to-right layout. Columns come from signal depth (inputs, gates, outputs).
@@ -154,6 +188,13 @@ function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, numbe
   const ys = [...drawY.values()];
   const topY = ys.length ? Math.max(...ys) : 0;
   const hasDrawing = drawY.size === nodes.length && nodes.length > 0;
+  // Column x positions from the real widths so terminals and gates sit close together.
+  const colX = new Map<number, number>();
+  let x = 0;
+  for (const c of [...cols.keys()].sort((a, b) => a - b)) {
+    colX.set(c, x);
+    x += (cols.get(c)!.some(isTerminal) ? TERMINAL_W : GATE_W) + COL_GAP;
+  }
   for (const [c, list] of cols) {
     // Order: sheet row (top first) when known, otherwise keep input order.
     const want = (n: LogicNode, i: number) =>
@@ -162,10 +203,11 @@ function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, numbe
     let y = -Infinity;
     for (const { n, w } of sorted) {
       const top = Math.max(w, y);
-      n.position = { x: c * COL_W, y: top };
+      n.position = { x: colX.get(c)!, y: top };
       y = top + nodeHeight(n) + GAP_Y;
     }
   }
+  compressGaps(nodes);
 }
 
 export interface GraphJsonResult {

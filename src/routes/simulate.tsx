@@ -179,6 +179,26 @@ function SimulatePage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const flowInstanceRef = useRef<ReactFlowInstance<LogicFlowNode, Edge> | null>(null);
+  const leftOpenRef = useRef(false);
+  const rightOpenRef = useRef(false);
+  const isMobileRef = useRef(false);
+  leftOpenRef.current = leftDrawerOpen;
+  rightOpenRef.current = rightDrawerOpen;
+  isMobileRef.current = isMobile;
+  const fitAll = useCallback(
+    (duration = 150) => {
+      // Keep the whole logic inside the part of the canvas that no drawer covers.
+      const left = leftOpenRef.current && !isMobileRef.current ? 304 : 16;
+      const right = rightOpenRef.current && !isMobileRef.current ? 336 : 16;
+      flowInstanceRef.current?.fitView({
+        padding: { top: "16px", right: `${right}px`, bottom: "64px", left: `${left}px` },
+        minZoom: 0.1,
+        maxZoom: 1.25,
+        duration,
+      });
+    },
+    [],
+  );
 
   // Simple physics model for PID sample (tank liquid level)
   const tankLevelRef = useRef<number>(20); // initial 20% level
@@ -282,8 +302,9 @@ function SimulatePage() {
   }, []);
 
   useEffect(() => {
-    setLeftDrawerOpen(!isMobile);
-    setRightDrawerOpen(!isMobile);
+    // Inputs and outputs are on the canvas now, so start with the whole logic in view.
+    setLeftDrawerOpen(false);
+    setRightDrawerOpen(false);
   }, [isMobile]);
 
   // Run / Pause / Step / Reset controls
@@ -317,6 +338,24 @@ function SimulatePage() {
     engineRef.current.setInput(nodeId, portId, value);
   };
 
+  // Terminals show live state and (for inputs) a switch right on the canvas.
+  const displayNodes = useMemo(
+    () =>
+      flowNodes.map((n) => {
+        const t = n.data.node.type;
+        if (t !== "DI" && t !== "DO") return n;
+        const key = makePortKey(n.id, t === "DI" ? "out" : "in");
+        const keyOut = makePortKey(n.id, "out");
+        const value = t === "DI" ? Boolean(forcedInputs[key] ?? signals[key] ?? false) : Boolean(signals[keyOut] ?? signals[key] ?? false);
+        return {
+          ...n,
+          data: { ...n.data, value, ...(t === "DI" ? { onToggle: () => handleToggleInput(n.id, "out", value) } : {}) },
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [flowNodes, signals, forcedInputs],
+  );
+
   // Active wire calculation
   const edges: Edge[] = useMemo(() => {
     return graph.edges.map((e) => {
@@ -335,7 +374,7 @@ function SimulatePage() {
         animated: isActive,
         style: {
           stroke: isActive ? "var(--primary)" : "var(--muted-foreground)",
-          strokeWidth: isActive ? 2 : 1,
+          strokeWidth: isActive ? 2.5 : 1.5,
           transition: "stroke 150ms ease, stroke-width 150ms ease",
         },
       };
@@ -412,6 +451,7 @@ function SimulatePage() {
             className="h-8 w-8 shrink-0"
             onClick={() => {
               setLeftDrawerOpen((open) => !open);
+              setTimeout(() => fitAll(200), 220);
               if (isMobile) setRightDrawerOpen(false);
             }}
             aria-label={leftDrawerOpen ? "Close inputs" : "Open inputs"}
@@ -458,7 +498,7 @@ function SimulatePage() {
           </Badge>
           <span className="text-xs text-muted-foreground">Cycle #{cycle}</span>
           </div>
-          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => flowInstanceRef.current?.fitView({ padding: 0.16, duration: 150 })} aria-label="Fit view" title="Fit view">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => fitAll()} aria-label="Fit view" title="Fit view">
             <Focus />
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
@@ -470,6 +510,7 @@ function SimulatePage() {
             className="h-8 w-8"
             onClick={() => {
               setRightDrawerOpen((open) => !open);
+              setTimeout(() => fitAll(200), 220);
               if (isMobile) setLeftDrawerOpen(false);
             }}
             aria-label={rightDrawerOpen ? "Close outputs and parameters" : "Open outputs and parameters"}
@@ -483,7 +524,7 @@ function SimulatePage() {
       <div className="relative min-h-0 flex-1" style={flowTheme}>
         <ReactFlow
           key={graphId}
-          nodes={flowNodes}
+          nodes={displayNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -494,6 +535,9 @@ function SimulatePage() {
           nodesConnectable={false}
           colorMode="dark"
           fitView
+          minZoom={0.1}
+          maxZoom={1.5}
+          fitViewOptions={{ padding: { top: "16px", right: rightDrawerOpen && !isMobile ? "336px" : "16px", bottom: "64px", left: leftDrawerOpen && !isMobile ? "304px" : "16px" }, minZoom: 0.1, maxZoom: 1.25 }}
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={16} />
