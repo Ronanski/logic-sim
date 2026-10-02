@@ -32,10 +32,7 @@ const schema = z.object({
         geometry: z.object({
           width: z.number().positive(),
           height: z.number().positive(),
-          bounds: z.object({ minX: z.number(), minY: z.number(), maxX: z.number(), maxY: z.number() }).optional(),
-          // Native DXF ports may intentionally be outside the visible symbol box, e.g. the
-          // long receiving trunk of a multi-input OR.
-          ports: z.record(z.string(), z.object({ side: z.enum(["L", "R"]), x: z.number(), y: z.number() })).optional(),
+          ports: z.record(z.string(), z.object({ side: z.enum(["L", "R"]), y: z.number().min(0).max(1) })).optional(),
         }).optional(),
       }),
     )
@@ -54,10 +51,7 @@ const schema = z.object({
       edgePaths: z.record(
         z.string(),
         z.array(z.object({ x: z.number(), y: z.number() })),
-      ).optional(),
-      netPaths: z.record(z.string(), z.string()).optional(),
-      edgeNets: z.record(z.string(), z.string()).optional(),
-      netJunctions: z.record(z.string(), z.array(z.object({ x: z.number(), y: z.number() }))).optional(),
+      ),
     })
     .optional(),
 });
@@ -129,8 +123,8 @@ export const TERMINAL_W = 340;
 export const TERMINAL_H = 48;
 export const GATE_W = 88;
 /** Native DXF symbols can be narrower/wider than the fallback gate box. */
-export const MIN_NATIVE_GATE_W = 18;
-export const MAX_NATIVE_GATE_W = 160;
+export const MIN_NATIVE_GATE_W = 34;
+export const MAX_NATIVE_GATE_W = 128;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
 const GATE_PAD = 8;
@@ -168,7 +162,7 @@ export function terminalHeight(n?: LogicNode): number {
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
-  if (n.geometry?.height) return Math.max(isSymbolGate(n) ? 18 : 44, n.geometry.height);
+  if (n.geometry?.height) return Math.max(44, n.geometry.height * (isSymbolGate(n) ? 1 : 1));
   if (isSymbolGate(n)) return Math.max(2, n.inputs.length + 1) * 28;
   return Math.max(44, Math.max(n.inputs.length, n.outputs.length, 1) * 20 + 12);
 };
@@ -355,14 +349,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
       outputs: m.outputs,
       confidence: m.forceReview ? Math.min(rn.confidence, 0.3) : rn.confidence,
       needsReview: rn.needsReview || !!m.forceReview,
-      ...(rn.geometry ? {
-        geometry: {
-          ...rn.geometry,
-          ports: rn.geometry.ports
-            ? Object.fromEntries(Object.entries(rn.geometry.ports).map(([id, p]) => [id, { ...p, x: p.x ?? (p.side === "L" ? 0 : 1) }]))
-            : undefined,
-        },
-      } : {}),
+      ...(rn.geometry ? { geometry: rn.geometry } : {}),
     };
   });
 
@@ -379,28 +366,26 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
 
   let geometry: ImportedGeometry | undefined;
   const rawGeometry = parsed.data.geometry;
-  if (rawGeometry && (Object.keys(rawGeometry.netPaths ?? {}).length || Object.keys(rawGeometry.edgePaths ?? {}).length) && drawX.size === nodes.length && drawY.size === nodes.length) {
-    // Imported DXF geometry is the source of truth. Use one uniform transform for
-    // nodes and native wires so ports land exactly on the physical drawing path.
+  if (rawGeometry && Object.keys(rawGeometry.edgePaths).length && drawX.size === nodes.length && drawY.size === nodes.length) {
+    // Keep the DXF's relative geometry. Do not run layoutSheet(), gap compression, or column reflow on imported drawings.
     const xs = nodes.map((n) => drawX.get(n.id)!);
     const ys = nodes.map((n) => drawY.get(n.id)!);
-    const pathPoints = Object.values(rawGeometry.netJunctions ?? {}).flat();
-    const allX = [...xs, ...pathPoints.map((p) => p.x)];
-    const allY = [...ys, ...pathPoints.map((p) => p.y)];
-    // Prefer the engineering-sheet row scale, but do not distort horizontal/vertical geometry.
-    // Scale is derived only from source geometry; no diagram-specific coordinates are used.
+    const edgePoints = Object.values(rawGeometry.edgePaths).flat();
+    const allX = [...xs, ...edgePoints.map((p) => p.x)];
+    const allY = [...ys, ...edgePoints.map((p) => p.y)];
+    const minX = Math.min(...allX);
+    const maxY = Math.max(...allY);
+    // Preserve drawing proportions. Scale is derived from the actual signal-row spacing
+    // so imported rows do not collapse into overlapping ReactFlow nodes.
     const terminalNodes = nodes.filter((n) => n.type === "DI" || n.type === "DO");
     const terminalYs = terminalNodes.map((n) => drawY.get(n.id)!).sort((a, b) => b - a);
     const gaps = terminalYs.map((v, i) => i ? Math.abs(terminalYs[i - 1] - v) : Infinity)
       .filter((v) => Number.isFinite(v) && v > 0.5);
     const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 10;
-    const SCALE = Math.max(2.5, Math.min(4.5, 60 / Math.max(1, medianGap)));
-    const minX = Math.min(...allX);
-    const maxY = Math.max(...allY);
+    const SCALE = Math.max(2.2, Math.min(4.5, 62 / Math.max(1, medianGap)));
 
-    // Terminal cards are UI shells around exact DXF connection anchors. Their right/left
-    // edge is deliberately pinned to the transformed wire endpoint instead of being treated
-    // as part of the drawing geometry.
+    // Terminal centers remain tied to the DXF. Only the card height is allowed to shrink
+    // so two rows can never visually overlap. This preserves the wire centerline exactly.
     const rowGapPx = new Map<string, number>();
     for (const n of terminalNodes) {
       const y0 = drawY.get(n.id)!;
@@ -411,7 +396,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
         if (d > 0.5 && d < nearest) nearest = d;
       }
       const drawingGapPx = Number.isFinite(nearest) ? nearest * SCALE : medianGap * SCALE;
-      rowGapPx.set(n.id, Math.max(26, Math.min(42, drawingGapPx * 0.78)));
+      rowGapPx.set(n.id, Math.max(28, Math.min(44, drawingGapPx * 0.78)));
     }
 
     for (const n of nodes) {
@@ -421,29 +406,25 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
       const y = (maxY - dy) * SCALE;
       const importedTerminalH = rowGapPx.get(n.id);
       const nativeW = n.geometry ? Math.max(MIN_NATIVE_GATE_W, Math.min(MAX_NATIVE_GATE_W, n.geometry.width * SCALE)) : GATE_W;
-      const nativeH = n.geometry ? Math.max(isSymbolGate(n) ? 18 : 30, n.geometry.height * SCALE) : nodeHeight(n);
+      const nativeH = n.geometry ? Math.max(30, n.geometry.height * SCALE) : nodeHeight(n);
       const h = isTerminal(n) ? (importedTerminalH ?? terminalHeight(n)) : nativeH;
-      if (isTerminal(n)) n.geometry = { ...(n.geometry ?? { width: TERMINAL_W, height: h }), width: TERMINAL_W, height: h };
-      else if (n.geometry) n.geometry = { ...n.geometry, width: nativeW, height: h };
+      if (isTerminal(n)) {
+        // Store the calibrated height so LogicNodeView and ReactFlow use the same box.
+        n.geometry = { ...(n.geometry ?? { width: TERMINAL_W, height: h }), width: TERMINAL_W, height: h };
+      } else if (n.geometry) {
+        // Preserve the native symbol aspect/size instead of forcing every gate into 88px.
+        n.geometry = { ...n.geometry, width: nativeW, height: h };
+      }
+      // Parser positions are drawing anchors/centers. ReactFlow positions are top-left coordinates.
       if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - h / 2 };
       else if (n.type === "DO") n.position = { x, y: y - h / 2 };
-      else if (n.geometry?.bounds) {
-        // Exact native symbol rectangle. g.pos is the detected center, but the renderer
-        // must anchor the node by the DXF bounding-box origin so wire endpoints and ports
-        // remain in the same coordinate frame.
-        const bx = (n.geometry.bounds.minX - minX) * SCALE;
-        const by = (maxY - n.geometry.bounds.maxY) * SCALE;
-        n.position = { x: bx, y: by };
-      } else n.position = { x: x - nativeW / 2, y: y - h / 2 };
+      else n.position = { x: x - nativeW / 2, y: y - h / 2 };
     }
-
-    geometry = {
-      source: "DXF",
-      ...(rawGeometry.edgePaths ? { edgePaths: Object.fromEntries(Object.entries(rawGeometry.edgePaths).map(([id, pts]) => [id, pts.map((p) => ({ x: (p.x - minX) * SCALE, y: (maxY - p.y) * SCALE }))])) } : {}),
-      ...(rawGeometry.netPaths ? { netPaths: Object.fromEntries(Object.entries(rawGeometry.netPaths).map(([id, d]) => [id, d.replace(/(-?\d+(?:\.\d+)?) (-?\d+)/g, (_m, xs0, ys0) => `${(Number(xs0) - minX) * SCALE} ${(maxY - Number(ys0)) * SCALE}`)])) } : {}),
-      ...(rawGeometry.edgeNets ? { edgeNets: rawGeometry.edgeNets } : {}),
-      ...(rawGeometry.netJunctions ? { netJunctions: Object.fromEntries(Object.entries(rawGeometry.netJunctions).map(([id, pts]) => [id, pts.map((p) => ({ x: (p.x - minX) * SCALE, y: (maxY - p.y) * SCALE }))])) } : {}),
-    };
+    const edgePaths: Record<string, LogicPoint[]> = {};
+    for (const [id, pts] of Object.entries(rawGeometry.edgePaths)) {
+      edgePaths[id] = pts.map((p) => ({ x: (p.x - minX) * SCALE, y: (maxY - p.y) * SCALE }));
+    }
+    geometry = { source: "DXF", edgePaths };
   } else {
     layout(nodes, edges, drawY, drawX);
   }

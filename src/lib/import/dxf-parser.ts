@@ -82,14 +82,8 @@ export interface GraphPoint {
 
 export interface GraphGeometry {
   source: "DXF";
-  /** Legacy per-edge paths in raw DXF coordinates (Y up). */
+  /** Canonical native drawing route for each logical edge, in raw DXF coordinates (Y up). */
   edgePaths?: Record<string, GraphPoint[]>;
-  /** Physical DXF wire nets, preserving every original segment and branch. */
-  netPaths?: Record<string, string>;
-  /** Logical edge id -> physical net id. */
-  edgeNets?: Record<string, string>;
-  /** Physical junctions for each net. */
-  netJunctions?: Record<string, GraphPoint[]>;
 }
 
 export interface Graph {
@@ -963,122 +957,67 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     if (!duplicate) edges.push(e);
   }
 
-  // --------------------------------------------------------------------------
-  // Native physical-net geometry
-  // --------------------------------------------------------------------------
-  // The DXF already contains the exact branch/trunk geometry. Build one physical
-  // net drawing from those segments instead of solving a shortest path for every
-  // logical edge. This prevents duplicate/overlapping lines and preserves DCS
-  // junctions, including branches that are not part of a shortest source->sink path.
-  const netIdForRoot = new Map<number, string>();
-  const netPaths: Record<string, string> = {};
-  const netJunctions: Record<string, GraphPoint[]> = {};
-
-  const splitSegmentsForRoot = (root: number): [Pt, Pt][] => {
-    const unique = new Map<string, [Pt, Pt]>();
-    const keySeg = (a: Pt, b: Pt) => {
-      const ak = pointKey(a), bk = pointKey(b);
-      return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
-    };
-    for (let i = 0; i < wires.length; i++) {
-      if (uf.f(i) !== root) continue;
-      const [a, b] = segOf(wires[i]);
-      const ps: Pt[] = [];
-      for (const v of wireVertices.values()) if (onSegment(v.p, a, b)) ps.push(v.p);
-      ps.sort((p1, p2) => Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? p1[0] - p2[0] : p1[1] - p2[1]);
-      for (let k = 0; k + 1 < ps.length; k++) {
-        if (dist(ps[k], ps[k + 1]) < 0.05) continue;
-        unique.set(keySeg(ps[k], ps[k + 1]), [ps[k], ps[k + 1]]);
+  // Canonical native edge paths: walk the actual DXF wire graph.
+  // This is intentionally backend-side geometry data; the UI only renders these points.
+  const shortestWirePath = (start: Pt, target: Pt): Pt[] | null => {
+    const sk = pointKey(start);
+    const tk = pointKey(target);
+    if (!wireVertices.has(sk) || !wireVertices.has(tk)) return null;
+    if (sk === tk) return [start, target];
+    const distMap = new Map<string, number>([[sk, 0]]);
+    const prev = new Map<string, string>();
+    const queue: { k: string; d: number }[] = [{ k: sk, d: 0 }];
+    while (queue.length) {
+      queue.sort((a, b) => a.d - b.d);
+      const cur = queue.shift()!;
+      if (cur.d !== distMap.get(cur.k)) continue;
+      if (cur.k === tk) break;
+      const cv = wireVertices.get(cur.k)!;
+      for (const nk of cv.links) {
+        const nv = wireVertices.get(nk)!;
+        const step = dist(cv.p, nv.p);
+        const nd = cur.d + step;
+        if (nd < (distMap.get(nk) ?? Infinity)) {
+          distMap.set(nk, nd);
+          prev.set(nk, cur.k);
+          queue.push({ k: nk, d: nd });
+        }
       }
     }
-    return [...unique.values()];
+    if (!prev.has(tk)) return null;
+    const keys = [tk];
+    while (keys[keys.length - 1] !== sk) keys.push(prev.get(keys[keys.length - 1])!);
+    keys.reverse();
+    return keys.map((k) => wireVertices.get(k)!.p);
   };
 
-  const roots = new Set<number>();
-  for (let i = 0; i < wires.length; i++) roots.add(uf.f(i));
-  let ni = 1;
-  // Small symbol-to-conductor bridges are generated from detected symbol boundaries.
-  // They are not diagram-specific: every bridge is derived from a real DXF contact.
-  const bridgeSegmentsForRoot = (root: number): [Pt, Pt][] => {
-    const out: [Pt, Pt][] = [];
-    const seen = new Set<string>();
-    const add = (a: Pt, b: Pt) => {
-      if (dist(a, b) < 0.05) return;
-      const ak = pointKey(a), bk = pointKey(b);
-      const k = ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
-      if (!seen.has(k)) { seen.add(k); out.push([a, b]); }
-    };
-    for (const c of contacts) {
-      if (uf.f(c.wi) !== root) continue;
-      const anchor = portAnchor.get(`${gates[c.gi].id}:${c.port}`);
-      if (!anchor) continue;
-      const wire = [c.x, c.y] as Pt;
-      // DCS logic symbols use orthogonal conductor entry. Keep the bridge orthogonal.
-      if (Math.abs(anchor[1] - wire[1]) < 0.1) add(wire, anchor);
-      else {
-        const elbow = [anchor[0], wire[1]] as Pt;
-        add(wire, elbow);
-        add(elbow, anchor);
-      }
-    }
-    return out;
+  const physicalAnchorFor = (nodeId: string, portId: string): Pt | null => {
+    const direct = terminalAnchorByNode.get(`${nodeId}:${portId}`) ?? terminalAnchorByNode.get(nodeId);
+    if (direct) return direct;
+    const hit = contacts.find((c) => gates[c.gi].id === nodeId && c.port === portId);
+    if (!hit) return null;
+    return ends.find((en) => en.i === hit.wi && Math.abs(en.p[1] - hit.y) < 0.3)?.p ?? [hit.x, hit.y];
   };
 
-  for (const root of roots) {
-    const segsForNet = [...splitSegmentsForRoot(root), ...bridgeSegmentsForRoot(root)];
-    if (!segsForNet.length) continue;
-    const netId = `net-${ni++}`;
-    netIdForRoot.set(root, netId);
-
-    // One SVG path can contain many M/L subpaths. Each subpath is an exact DXF
-    // segment; no artificial connection is introduced between branches.
-    netPaths[netId] = segsForNet.map(([a, b]) => `M ${a[0]} ${a[1]} L ${b[0]} ${b[1]}`).join(" ");
-
-    // Junction = a split point with three or more physical directions, or an
-    // explicit DXF junction dot. Different nets never share a dot.
-    const dirs = new Map<string, Set<string>>();
-    const pos = new Map<string, Pt>();
-    const addDir = (p: Pt, q: Pt) => {
-      const k = pointKey(p);
-      const horizontal = Math.abs(p[1] - q[1]) < 0.05;
-      const d = horizontal ? (q[0] > p[0] ? "R" : "L") : q[1] > p[1] ? "U" : "D";
-      pos.set(k, p);
-      if (!dirs.has(k)) dirs.set(k, new Set());
-      dirs.get(k)!.add(d);
-    };
-    for (const [a, b] of segsForNet) {
-      addDir(a, b); addDir(b, a);
-    }
-    for (const d of dots) {
-      if (segsForNet.some(([a, b]) => distPtSeg(d, a, b) <= 0.8)) {
-        const k = pointKey(d);
-        pos.set(k, d);
-        if (!dirs.has(k)) dirs.set(k, new Set());
-      }
-    }
-    const jp: GraphPoint[] = [];
-    for (const [k, ds] of dirs) {
-      if (ds.size >= 3 || dots.some((d) => pointKey(d) === k)) {
-        const p = pos.get(k)!;
-        jp.push({ x: p[0], y: p[1] });
-      }
-    }
-    netJunctions[netId] = jp;
-  }
-
-  const endpointNet = new Map<string, string>();
-  const addEndpointNet = (node: string, port: string, root: number) => {
-    const net = netIdForRoot.get(root);
-    if (net) endpointNet.set(`${node}:${port}`, net);
-  };
-  for (const [netRoot, eps] of sourceOf) for (const [node, port] of eps) addEndpointNet(node, port, netRoot);
-  for (const [netRoot, eps] of sinkOf) for (const [node, port] of eps) addEndpointNet(node, port, netRoot);
-
-  const edgeNets: Record<string, string> = {};
+  const edgePaths: Record<string, GraphPoint[]> = {};
   edges.forEach((e, i) => {
-    // Synthetic edges (e.g. a UI-only default graph link) are not physical nets.
-    const net = endpointNet.get(`${e.from.node}:${e.from.port}`) ?? endpointNet.get(`${e.to.node}:${e.to.port}`);
-    if (net) edgeNets[`e${i + 1}`] = net;
+    const sPt = physicalAnchorFor(e.from.node, e.from.port);
+    const tPt = physicalAnchorFor(e.to.node, e.to.port);
+    if (!sPt || !tPt) return;
+    const path = shortestWirePath(sPt, tPt);
+    if (!path || path.length < 2) return;
+    const simplified: Pt[] = [];
+    for (const p of path) {
+      const prev = simplified[simplified.length - 2];
+      const last = simplified[simplified.length - 1];
+      if (last && prev) {
+        const collinear = (Math.abs(prev[0] - last[0]) < 0.05 && Math.abs(last[0] - p[0]) < 0.05) ||
+          (Math.abs(prev[1] - last[1]) < 0.05 && Math.abs(last[1] - p[1]) < 0.05);
+        if (collinear) { simplified[simplified.length - 1] = p; continue; }
+      }
+      simplified.push(p);
+    }
+    edgePaths[`e${i + 1}`] = simplified.map(([x, y]) => ({ x, y }));
   });
 
   // labels inside the logic area that we did not recognise (new symbol types)
@@ -1108,8 +1047,8 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
   }
   for (const nd of nodes) if (nd.needsReview) report.push(`Please review: ${nd.id} (${nd.type})`);
 
-  const geometry: GraphGeometry | undefined = Object.keys(netPaths).length
-    ? { source: "DXF" as const, netPaths, edgeNets, netJunctions }
+  const geometry: GraphGeometry | undefined = Object.keys(edgePaths).length
+    ? { source: "DXF" as const, edgePaths }
     : undefined;
   return { graph: { nodes, edges, ...(geometry ? { geometry } : {}) }, report };
 }

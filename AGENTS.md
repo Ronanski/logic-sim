@@ -48,3 +48,12 @@
 - Every parser/geometry/rendering change must update `PROJECT_NOTES.md`, `DESIGN.md`, and `AGENTS.md`.
 - Do not add generic bbox padding to native symbols when it creates visible overlap with adjacent I/O cards. Preserve the detected DXF extents.
 - Do not let visual native-bounds changes alter wire-topology classification; keep any small wire-filtering tolerance internal to the parser and render from exact native bounds.
+
+
+## Geometry architecture — V7.3
+- Native DXF `edgePaths` produced by the parser are the canonical physical route data.
+- The UI renders/bundles those paths; ReactFlow/A* is fallback only for edges without a native path.
+- Do not add a second SVG `netPaths` coordinate system or re-transform native wires in the renderer.
+- Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
+- Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
+- Regression drawings: DITL-02, DITL-03A, DITL-13.

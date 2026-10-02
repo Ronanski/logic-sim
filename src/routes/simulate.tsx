@@ -11,7 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { RoutedEdge } from "@/components/logic-graph/routed-edge";
 import { RouteManager } from "@/components/logic-graph/route-manager";
-import { type Pt } from "@/lib/logic-graph/route-edges";
+import { bundleNetRoutes, junctionPoints, type Pt } from "@/lib/logic-graph/route-edges";
 import {
   Activity,
   ChevronDown,
@@ -418,43 +418,25 @@ function SimulatePage() {
     [flowNodes, signals, forcedInputs],
   );
 
-  // Native DXF geometry is rendered once per physical net. Logical edges are kept for simulation
-  // but never duplicate the physical trunk/branches. Non-native edges still use the fallback router.
-  const nativeNetOwner = useMemo(() => {
-    const owners: Record<string, string> = {};
-    const edgeNets = graph.geometry?.edgeNets ?? {};
-    for (const e of graph.edges) {
-      const net = edgeNets[e.id];
-      if (net && !owners[net]) owners[net] = e.id;
-    }
-    return owners;
+  // Physical DXF nets are rendered once. Multiple logical edges that share the same source
+  // therefore appear as one trunk with branch/junction geometry instead of stacked lines.
+  const netOf = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const e of graph.edges) out[e.id] = `${e.from.nodeId}:${e.from.portId}`;
+    return out;
   }, [graph]);
 
-  const netLive = useMemo(() => {
-    const live: Record<string, boolean> = {};
-    const edgeNets = graph.geometry?.edgeNets ?? {};
-    for (const e of graph.edges) {
-      const net = edgeNets[e.id];
-      if (!net) continue;
-      const value = signals[makePortKey(e.from.nodeId, e.from.portId)];
-      const isLive = typeof value === "boolean" ? value : typeof value === "number" && value > 0;
-      if (isLive) live[net] = true;
-    }
-    return live;
-  }, [graph, signals]);
+  const junctions = useMemo(() => junctionPoints(routes, netOf), [routes, netOf]);
+  const netBundles = useMemo(() => bundleNetRoutes(routes, netOf), [routes, netOf]);
 
   const edges: Edge[] = useMemo(() => {
-    const edgeNets = graph.geometry?.edgeNets ?? {};
-    const netPaths = graph.geometry?.netPaths ?? {};
-    const netJunctions = graph.geometry?.netJunctions ?? {};
     return graph.edges.map((e) => {
-      const net = edgeNets[e.id];
-      const ownerId = net ? nativeNetOwner[net] : undefined;
-      // A physical net is one shared conductor. Its animation/state follows the
-      // net rather than whichever logical edge happened to own the rendered path.
-      const sourceKey = makePortKey(e.from.nodeId, e.from.portId);
-      const val = signals[sourceKey];
-      const live = net ? !!netLive[net] : (typeof val === "boolean" ? val : typeof val === "number" && val > 0);
+      const srcKey = makePortKey(e.from.nodeId, e.from.portId);
+      const val = signals[srcKey];
+      const live = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
+      const net = netOf[e.id];
+      const bundle = netBundles[net];
+      const bundleOwner = !!bundle && bundle.owner === e.id;
       return {
         id: e.id,
         source: e.from.nodeId,
@@ -464,20 +446,20 @@ function SimulatePage() {
         type: "routed",
         data: {
           points: routes[e.id],
-          nativePath: net ? netPaths[net] : undefined,
-          junctions: net ? netJunctions[net] : undefined,
-          bundleOwner: ownerId ? ownerId === e.id : undefined,
+          junctions: junctions[e.id],
+          bundlePath: bundle?.path,
+          bundleOwner: bundle ? bundleOwner : undefined,
         },
         animated: live,
         style: {
-          stroke: live ? "var(--signal-live)" : "var(--foreground)",
+          stroke: live ? "#ef4444" : "var(--foreground)",
           strokeWidth: live ? 2.25 : 1.25,
           opacity: 1,
           transition: "stroke 150ms ease, stroke-width 150ms ease",
         },
       };
     });
-  }, [graph, signals, routes, nativeNetOwner, netLive]);
+  }, [graph, signals, routes, junctions, netOf, netBundles]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);
@@ -646,7 +628,7 @@ function SimulatePage() {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={16} />
-          <RouteManager edges={graph.edges} nativeRoutes={graph.geometry?.edgePaths} nativeNetEdges={graph.geometry?.edgeNets} onRoutes={setRoutes} />
+          <RouteManager edges={graph.edges} nativeRoutes={graph.geometry?.edgePaths} onRoutes={setRoutes} />
         </ReactFlow>
 
         <aside className={`absolute inset-y-0 left-0 z-10 flex w-72 max-w-[calc(100%-3rem)] flex-col border-r bg-card transition-transform duration-150 ${leftDrawerOpen ? "translate-x-0" : "-translate-x-full"}`}>

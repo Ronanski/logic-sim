@@ -100,3 +100,12 @@ Update this file after every change.
 - Acceptance checks added for DITL-03A native bounds and shared OR receiving-trunk X.
 - Native gate bounding boxes now use the detected symbol extents without artificial padding, preventing tiny terminal-card/symbol overlaps such as the DITL-03A timer row.
 - Native symbol bounds are stored separately from the parser's small wire-filtering bbox: topology keeps its tolerance, while rendering uses exact detected symbol extents.
+
+
+## Geometry architecture — V7.3
+- Native DXF `edgePaths` produced by the parser are the canonical physical route data.
+- The UI renders/bundles those paths; ReactFlow/A* is fallback only for edges without a native path.
+- Do not add a second SVG `netPaths` coordinate system or re-transform native wires in the renderer.
+- Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
+- Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
+- Regression drawings: DITL-02, DITL-03A, DITL-13.

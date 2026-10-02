@@ -72,3 +72,12 @@ These rules apply to **every** future change to LogicSim. Do not deviate.
 - Native symbol dimensions are allowed to remain small when the DXF symbol is small; do not stretch NOT/AND/OR blocks to a generic minimum that changes the drawing.
 - Native symbol bounds should use the detected symbol extents without artificial padding; visual spacing must come from the actual drawing, not a hidden safety margin.
 - Keep parsing/topology tolerance separate from visual geometry: a small internal wire-filtering pad is allowed, but native rendering bounds must remain the exact detected symbol extents.
+
+
+## Geometry architecture — V7.3
+- Native DXF `edgePaths` produced by the parser are the canonical physical route data.
+- The UI renders/bundles those paths; ReactFlow/A* is fallback only for edges without a native path.
+- Do not add a second SVG `netPaths` coordinate system or re-transform native wires in the renderer.
+- Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
+- Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
+- Regression drawings: DITL-02, DITL-03A, DITL-13.

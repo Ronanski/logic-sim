@@ -61,3 +61,12 @@ npm run dev
 - Regression sheets: DITL-02, DITL-03A, DITL-13.
 - Native symbol bounds are unpadded detected DXF extents so adjacent terminal cards do not overlap the symbol frame.
 - Parser topology may keep a small internal filtering tolerance, but the returned native symbol bounds used for placement are exact detected extents.
+
+
+## Geometry architecture — V7.3
+- Native DXF `edgePaths` produced by the parser are the canonical physical route data.
+- The UI renders/bundles those paths; ReactFlow/A* is fallback only for edges without a native path.
+- Do not add a second SVG `netPaths` coordinate system or re-transform native wires in the renderer.
+- Shared source nets are visually bundled with junction points from the native edge paths; logical edges remain independent for simulation.
+- Keep node positions derived from the same DXF coordinate transform as the native edge endpoints.
+- Regression drawings: DITL-02, DITL-03A, DITL-13.
