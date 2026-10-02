@@ -45,14 +45,17 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   const b = 1;
   const handleSize = { width: 6 * b, height: 6 * b };
 
-  // Signal terminals: every box has the same size. Left: tag (+ address); right: the description, wrapped (nothing is cut off).
+  // Signal terminals: every box has the same size. A short plant tag (e.g. 09-74) gets its own left column;
+  // the description (or, when there is none, the tag text itself) fills the rest and wraps. Nothing is cut off.
   if (node.type === "DI" || node.type === "DO") {
     const { desc, addr, showDesc } = terminalText(node);
-    const text = showDesc ? desc : "";
+    const shortTag = node.tag.length <= 10 && !/\s/.test(node.tag.trim());
+    const text = showDesc ? desc : shortTag ? "" : node.tag;
+    const tagCol = shortTag || showDesc;
     return (
       <div
         className={cn(
-          "relative flex items-center gap-2 overflow-visible rounded-md border border-foreground/30 bg-card px-2 text-card-foreground",
+          "relative flex items-center gap-3 overflow-visible rounded-md border border-foreground/30 bg-card px-3 text-card-foreground",
           selected && "border-primary",
         )}
         style={{ width: TERMINAL_W, height: nodeHeight(node) }}
@@ -64,14 +67,14 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
         {node.outputs.map((p) => (
           <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={handleSize} />
         ))}
-        <div className="flex w-24 shrink-0 flex-col justify-center border-r border-foreground/20 pr-2">
-          <span className="flex items-center gap-1 text-[13px] font-semibold leading-[16px] text-foreground">
+        {tagCol && (
+          <span className="flex w-16 shrink-0 items-center gap-1 text-[13px] font-semibold leading-4 tracking-wide text-foreground">
             {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
             <span className="min-w-0 break-words">{node.tag}</span>
           </span>
-          {addr && <span className="font-mono text-[11px] leading-[14px] text-secondary-foreground">{addr}</span>}
-        </div>
-        <span className="min-w-0 flex-1 break-words text-[13px] font-medium leading-[15px] text-foreground">{text}</span>
+        )}
+        <span className="min-w-0 flex-1 break-words text-[13px] font-medium leading-4 tracking-wide text-foreground">{text}</span>
+        {addr && <span className="shrink-0 font-mono text-[12px] leading-4 text-secondary-foreground">{addr}</span>}
         {node.type === "DI" && onToggle && (
           <Switch
             className="nodrag nopan"
@@ -149,11 +152,11 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
 
   return (
     <div
-      className={cn("overflow-hidden rounded-md border-2 border-foreground/50 bg-card text-card-foreground", selected && "border-primary")}
+      className={cn("overflow-hidden rounded-md border-2 border-foreground/60 bg-secondary text-secondary-foreground", selected && "border-primary")}
       style={{ width: GATE_W, height: nodeHeight(node) }}
       title={`${node.type}${showTag ? ` · ${node.tag}` : ""}${extra ? ` · ${extra}` : ""}`}
     >
-      <div className="flex items-center gap-2 border-b border-foreground/30 bg-secondary px-2" style={{ height: HEADER }}>
+      <div className="flex items-center gap-2 border-b border-foreground/40 bg-foreground/20 px-2" style={{ height: HEADER }}>
         {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
         <span className="font-bold text-foreground" style={{ fontSize: 14 * b }}>{node.type}</span>
         {(extra || showTag) && (
