@@ -265,6 +265,52 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
   return out;
 }
 
+
+/**
+ * Bundle edges that share the same source port into one physical DXF net drawing.
+ * The first edge owns the visual path; the remaining logical edges still exist for
+ * simulation/connectivity but do not paint duplicate lines over the common trunk.
+ */
+export interface NetBundle {
+  owner: string;
+  path: string;
+}
+
+function segKey(a: Pt, b: Pt): string {
+  const ak = `${a.x.toFixed(2)},${a.y.toFixed(2)}`;
+  const bk = `${b.x.toFixed(2)},${b.y.toFixed(2)}`;
+  return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
+}
+
+export function bundleNetRoutes(routes: Record<string, Pt[]>, netOf: Record<string, string>): Record<string, NetBundle> {
+  const grouped = new Map<string, string[]>();
+  for (const id of Object.keys(routes)) {
+    if (!routes[id] || routes[id].length < 2) continue;
+    const net = netOf[id];
+    if (net == null) continue;
+    const list = grouped.get(net) ?? [];
+    list.push(id);
+    grouped.set(net, list);
+  }
+
+  const out: Record<string, NetBundle> = {};
+  for (const [net, ids] of grouped) {
+    const unique = new Map<string, [Pt, Pt]>();
+    for (const id of ids) {
+      const pts = routes[id];
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        unique.set(segKey(a, b), [a, b]);
+      }
+    }
+    if (!unique.size) continue;
+    const path = [...unique.values()].map(([a, b]) => `M ${a.x} ${a.y} L ${b.x} ${b.y}`).join(" ");
+    out[net] = { owner: ids[0], path };
+  }
+  return out;
+}
+
 /** SVG path through the points with square corners (no curves). */
 export function pathFromPoints(pts: Pt[]): string {
   if (pts.length < 2) return "";

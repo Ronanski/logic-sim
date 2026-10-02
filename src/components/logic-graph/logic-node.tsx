@@ -1,10 +1,11 @@
-import { Handle, Position, useStore, type Node, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { AlertTriangle } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { LogicNode } from "@/lib/logic-graph/types";
 import { GATE_W, TERMINAL_W, isSymbolGate, nodeHeight, terminalText } from "@/lib/import/graph-json";
+import { DITL00_SYMBOLS } from "@/lib/symbol-library/ditl00-symbols";
 
 export type LogicFlowNode = Node<
   {
@@ -24,11 +25,9 @@ const TIMERS = ["TON", "TOF", "TP"];
  * Logic gate symbols drawn in a 100 x 100 box that is stretched to the node size
  * (AND = flat back + round front, OR = bar + pointed front, NOT = triangle + bubble).
  */
-const SYMBOLS: Record<string, string> = {
-  AND: "M1,1 H55 A44,49 0 0 1 55,99 H1 Z",
-  OR: "M1,1 V99 C55,99 85,75 99,50 C85,25 55,1 1,1 Z",
-  NOT: "M1,12 L89,50 L1,88 Z M89,50 a5,8.75 0 1,0 10,0 a5,8.75 0 1,0 -10,0 Z",
-};
+const SYMBOLS: Record<string, string> = Object.fromEntries(
+  Object.entries(DITL00_SYMBOLS).map(([type, symbol]) => [type, symbol.path]),
+);
 
 function timerLabel(node: LogicNode): string | null {
   if (!TIMERS.includes(node.type)) return null;
@@ -95,11 +94,12 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   // AND / OR / NOT drawn as real gate symbols. Inputs are spread evenly on the left, the output sits on the middle right.
   if (isSymbolGate(node)) {
     const n = Math.max(node.inputs.length, 1);
+    const gateWidth = node.geometry?.width ?? GATE_W;
     const pct = (i: number) => ((i + 1) / (n + 1)) * 100;
     const showTag = node.tag && node.tag.toUpperCase() !== node.type;
     return (
-      <div className="relative" style={{ width: GATE_W, height: nodeHeight(node) }} title={`${node.type}${showTag ? ` · ${node.tag}` : ""}`}>
-        <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <div className="relative" style={{ width: gateWidth, height: nodeHeight(node) }} title={`${node.type}${showTag ? ` · ${node.tag}` : ""}`}>
+        <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <path
             d={SYMBOLS[node.type]}
             className={cn("fill-card", selected ? "stroke-primary" : "stroke-muted-foreground")}
@@ -126,14 +126,14 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           const top = nativeY == null ? pct(i) : nativeY * 100;
           return (
             <div key={p.id}>
-              <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${top}%` }} />
+              <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${top}%`, transform: "translateY(-50%)" }} />
               {/* Port IDs (I1/I2/I3...) are intentionally hidden to keep the imported DCS sheet clean. */}
             </div>
           );
         })}
         {node.outputs.map((p) => {
           const nativeY = node.geometry?.ports?.[p.id]?.y;
-          return <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: `${(nativeY == null ? 0.5 : nativeY) * 100}%` }} />;
+          return <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: `${(nativeY == null ? 0.5 : nativeY) * 100}%`, transform: "translateY(-50%)" }} />;
         })}
       </div>
     );
@@ -143,6 +143,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   // Port names are only shown where they matter (SR: S / R); timers show their time.
   const inN = Math.max(node.inputs.length, 1);
   const pct = (i: number, n: number) => ((i + 1) / (n + 1)) * 100;
+  const boxWidth = node.geometry?.width ?? GATE_W;
   const namedPorts = node.type === "SR";
   const extra = timerLabel(node);
   const showTag = node.tag && node.tag.toUpperCase() !== node.type;
@@ -152,7 +153,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
         "relative flex flex-col items-center justify-center rounded-md border-2 border-foreground/70 bg-secondary text-secondary-foreground",
         selected && "border-primary",
       )}
-      style={{ width: GATE_W, height: nodeHeight(node) }}
+      style={{ width: boxWidth, height: nodeHeight(node) }}
       title={`${node.type}${showTag ? ` · ${node.tag}` : ""}${extra ? ` · ${extra}` : ""}`}
     >
       <span className="flex items-center gap-1 text-[14px] font-bold leading-4 text-foreground">
@@ -162,7 +163,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
       {(extra || showTag) && <span className="font-mono text-[12px] leading-4 text-secondary-foreground">{extra ?? node.tag}</span>}
       {node.inputs.map((p, i) => (
         <div key={p.id}>
-          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i, inN)}%` }} />
+          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i, inN)}%`, transform: "translateY(-50%)" }} />
           {namedPorts && (
             <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${pct(i, inN)}% - 7px)`, lineHeight: "14px" }}>
               {p.name}
@@ -172,7 +173,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
       ))}
       {node.outputs.map((p) => (
         <div key={p.id}>
-          <Handle type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: "50%" }} />
+          <Handle type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: "50%", transform: "translateY(-50%)" }} />
           {namedPorts && (
             <span className="absolute right-1.5 text-[11px] font-medium text-foreground" style={{ top: "calc(50% - 7px)", lineHeight: "14px" }}>
               {p.name}

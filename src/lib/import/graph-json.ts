@@ -122,6 +122,9 @@ export const TERMINAL_W = 340;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 48;
 export const GATE_W = 88;
+/** Native DXF symbols can be narrower/wider than the fallback gate box. */
+export const MIN_NATIVE_GATE_W = 34;
+export const MAX_NATIVE_GATE_W = 128;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
 const GATE_PAD = 8;
@@ -381,10 +384,8 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 10;
     const SCALE = Math.max(2.2, Math.min(4.5, 62 / Math.max(1, medianGap)));
 
-    // The DXF row spacing is authoritative. UI cards must fit inside a drawing row
-    // instead of using the old fixed 48px height, which caused close rows in sheets
-    // such as DITL-02 to overlap each other. Keep enough height for readability,
-    // but never let a terminal occupy most of the distance to its nearest neighbour.
+    // Terminal centers remain tied to the DXF. Only the card height is allowed to shrink
+    // so two rows can never visually overlap. This preserves the wire centerline exactly.
     const rowGapPx = new Map<string, number>();
     for (const n of terminalNodes) {
       const y0 = drawY.get(n.id)!;
@@ -395,7 +396,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
         if (d > 0.5 && d < nearest) nearest = d;
       }
       const drawingGapPx = Number.isFinite(nearest) ? nearest * SCALE : medianGap * SCALE;
-      rowGapPx.set(n.id, Math.max(26, Math.min(48, drawingGapPx * 0.72)));
+      rowGapPx.set(n.id, Math.max(28, Math.min(44, drawingGapPx * 0.78)));
     }
 
     for (const n of nodes) {
@@ -404,19 +405,20 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
       const x = (dx - minX) * SCALE;
       const y = (maxY - dy) * SCALE;
       const importedTerminalH = rowGapPx.get(n.id);
-      const h = isTerminal(n)
-        ? (importedTerminalH ?? terminalHeight(n))
-        : (n.geometry ? Math.max(44, n.geometry.height * SCALE) : nodeHeight(n));
+      const nativeW = n.geometry ? Math.max(MIN_NATIVE_GATE_W, Math.min(MAX_NATIVE_GATE_W, n.geometry.width * SCALE)) : GATE_W;
+      const nativeH = n.geometry ? Math.max(30, n.geometry.height * SCALE) : nodeHeight(n);
+      const h = isTerminal(n) ? (importedTerminalH ?? terminalHeight(n)) : nativeH;
       if (isTerminal(n)) {
         // Store the calibrated height so LogicNodeView and ReactFlow use the same box.
         n.geometry = { ...(n.geometry ?? { width: TERMINAL_W, height: h }), width: TERMINAL_W, height: h };
       } else if (n.geometry) {
-        n.geometry = { ...n.geometry, width: GATE_W, height: h };
+        // Preserve the native symbol aspect/size instead of forcing every gate into 88px.
+        n.geometry = { ...n.geometry, width: nativeW, height: h };
       }
       // Parser positions are drawing anchors/centers. ReactFlow positions are top-left coordinates.
       if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - h / 2 };
       else if (n.type === "DO") n.position = { x, y: y - h / 2 };
-      else n.position = { x: x - GATE_W / 2, y: y - h / 2 };
+      else n.position = { x: x - nativeW / 2, y: y - h / 2 };
     }
     const edgePaths: Record<string, LogicPoint[]> = {};
     for (const [id, pts] of Object.entries(rawGeometry.edgePaths)) {

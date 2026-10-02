@@ -7,7 +7,7 @@ import { pathFromPoints, type Pt } from "@/lib/logic-graph/route-edges";
  * a crossing without a dot is not connected. If the route is stale (node moved), falls back to a plain step wire.
  */
 export function RoutedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, data }: EdgeProps) {
-  const d = data as { points?: Pt[]; junctions?: Pt[] } | undefined;
+  const d = data as { points?: Pt[]; junctions?: Pt[]; bundlePath?: string; bundleOwner?: boolean } | undefined;
   const pts = d?.points;
   const nativeOk = !!pts && pts.length >= 2;
 
@@ -50,14 +50,17 @@ export function RoutedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosit
       })()
     : undefined;
 
-  const path = connected
-    ? pathFromPoints(connected)
-    : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 0 })[0];
+  const path = d?.bundleOwner && d.bundlePath
+    ? d.bundlePath
+    : connected
+      ? pathFromPoints(connected)
+      : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 0 })[0];
   const ok = !!connected;
+  const hiddenDuplicate = !!d?.bundlePath && d.bundleOwner === false;
   return (
     <>
-      <BaseEdge id={id} path={path} style={{ ...style, fill: "none", strokeWidth: style?.strokeWidth ?? 1.5 }} />
-      {ok &&
+      <BaseEdge id={id} path={path} style={{ ...style, fill: "none", strokeWidth: style?.strokeWidth ?? 1.5, opacity: hiddenDuplicate ? 0 : style?.opacity }} />
+      {ok && d?.bundleOwner !== false &&
         d?.junctions?.map((j, i) => (
           <circle key={i} cx={j.x} cy={j.y} r={3.5} style={{ fill: style?.stroke as string | undefined, opacity: style?.opacity }} className="pointer-events-none" />
         ))}

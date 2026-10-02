@@ -11,7 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { RoutedEdge } from "@/components/logic-graph/routed-edge";
 import { RouteManager } from "@/components/logic-graph/route-manager";
-import { junctionPoints, type Pt } from "@/lib/logic-graph/route-edges";
+import { bundleNetRoutes, junctionPoints, type Pt } from "@/lib/logic-graph/route-edges";
 import {
   Activity,
   ChevronDown,
@@ -418,14 +418,16 @@ function SimulatePage() {
     [flowNodes, signals, forcedInputs],
   );
 
-  // Junction dots are derived from the imported native routes.
-  // Keep this independent from hover/focus state so cursor movement can never
-  // hide or dim the underlying DXF wire geometry.
-  const junctions = useMemo(() => {
-    const netOf: Record<string, string> = {};
-    for (const e of graph.edges) netOf[e.id] = `${e.from.nodeId}:${e.from.portId}`;
-    return junctionPoints(routes, netOf);
-  }, [graph, routes]);
+  // Physical DXF nets are rendered once. Multiple logical edges that share a source
+  // therefore appear as one trunk with branch/junction geometry instead of stacked lines.
+  const netOf = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const e of graph.edges) out[e.id] = `${e.from.nodeId}:${e.from.portId}`;
+    return out;
+  }, [graph]);
+
+  const junctions = useMemo(() => junctionPoints(routes, netOf), [routes, netOf]);
+  const netBundles = useMemo(() => bundleNetRoutes(routes, netOf), [routes, netOf]);
 
   const edges: Edge[] = useMemo(() => {
     return graph.edges.map((e) => {
@@ -436,6 +438,9 @@ function SimulatePage() {
       // Keep ReactFlow's animated edge/dash behavior for live signals.
       const live = isActive;
 
+      const net = netOf[e.id];
+      const bundle = netBundles[net];
+      const bundleOwner = !!bundle && bundle.owner === e.id;
       return {
         id: e.id,
         source: e.from.nodeId,
@@ -443,7 +448,12 @@ function SimulatePage() {
         target: e.to.nodeId,
         targetHandle: e.to.portId,
         type: "routed",
-        data: { points: routes[e.id], junctions: junctions[e.id] },
+        data: {
+          points: routes[e.id],
+          junctions: junctions[e.id],
+          bundlePath: bundle?.path,
+          bundleOwner: bundle ? bundleOwner : undefined,
+        },
         animated: live,
         style: {
           stroke: live ? "#ef4444" : "var(--foreground)",
@@ -453,7 +463,7 @@ function SimulatePage() {
         },
       };
     });
-  }, [graph, signals, routes, junctions]);
+  }, [graph, signals, routes, junctions, netOf, netBundles]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);
@@ -615,10 +625,6 @@ function SimulatePage() {
           colorMode="light"
           className="paper"
           style={flowTheme}
-          onNodeMouseEnter={(_, n) => setHoverNodeId(n.id)}
-          onNodeMouseLeave={() => setHoverNodeId(null)}
-          onEdgeMouseEnter={(_, e) => setHoverEdgeId(e.id)}
-          onEdgeMouseLeave={() => setHoverEdgeId(null)}
           fitView
           minZoom={0.1}
           maxZoom={1.5}
