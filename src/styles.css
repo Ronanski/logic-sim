@@ -107,6 +107,29 @@
 }
 
 
+/*
+ * Paper canvas (exemption approved in DESIGN.md): the logic canvas only is light, like the printed sheet.
+ * Same neutral-gray tokens (chroma <= 0.01) and the same single blue accent, just inverted.
+ */
+.paper {
+  --background: oklch(0.985 0.002 255);
+  --foreground: oklch(0.2 0.006 255);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.006 255);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.006 255);
+  --secondary: oklch(0.94 0.004 255);
+  --secondary-foreground: oklch(0.28 0.006 255);
+  --muted: oklch(0.94 0.004 255);
+  --muted-foreground: oklch(0.42 0.008 255);
+  --accent: oklch(0.92 0.004 255);
+  --accent-foreground: oklch(0.2 0.006 255);
+  --border: oklch(0.8 0.004 255);
+  --input: oklch(0.78 0.004 255);
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
 /* Wires keep a constant on-screen thickness so they stay visible when the sheet is zoomed out. */
 .react-flow__edge-path {
   vector-effect: non-scaling-stroke;

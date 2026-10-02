@@ -107,7 +107,7 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 export const TERMINAL_W = 420;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 48;
-export const GATE_W = 128;
+export const GATE_W = 88;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
 const GATE_PAD = 8;
@@ -125,7 +125,7 @@ export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND"
 const COL_GAP = 90;
 const GAP_Y = 8;
 /** Screen units per drawing unit (sheet rows are ~9 units apart). */
-const DRAW_SCALE = 4;
+const DRAW_SCALE = 6;
 /** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
 const MAX_BAND_GAP = 24;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
@@ -144,8 +144,9 @@ export function terminalHeight(_n?: LogicNode): number {
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
-  if (isSymbolGate(n)) return Math.max(48, (n.inputs.length || 1) * 22 + 10);
-  return GATE_HEADER + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_ROW + GATE_PAD;
+  if (isSymbolGate(n)) return Math.max(2, n.inputs.length + 1) * 28;
+  // Compact gate box: type name in the middle, one 20 px slot per port.
+  return Math.max(44, Math.max(n.inputs.length, n.outputs.length, 1) * 20 + 12);
 };
 
 function compressGaps(nodes: LogicNode[]) {
@@ -175,11 +176,58 @@ function compressGaps(nodes: LogicNode[]) {
 }
 
 /**
+ * Sheet layout: gates sit where they are on the drawing (x and y scaled), inputs in a left column and
+ * outputs in a right column on their sheet rows, so the picture reads like the original sheet.
+ * Gates that would overlap are pushed down. Returns false when the drawing has no positions.
+ */
+function layoutSheet(nodes: LogicNode[], drawX: Map<string, number>, drawY: Map<string, number>): boolean {
+  const gates = nodes.filter((n) => !isTerminal(n));
+  if (!nodes.length || !gates.length || nodes.some((n) => !drawX.has(n.id) || !drawY.has(n.id))) return false;
+  const topY = Math.max(...nodes.map((n) => drawY.get(n.id)!));
+  const gx = gates.map((n) => drawX.get(n.id)!);
+  const gx0 = Math.min(...gx);
+  const span = Math.max(1, Math.max(...gx) - gx0);
+  const XS = Math.max(2.5, Math.min(5, 900 / span));
+  const gateStart = TERMINAL_W + 70;
+  for (const g of gates) {
+    g.position = { x: gateStart + (drawX.get(g.id)! - gx0) * XS, y: (topY - drawY.get(g.id)!) * DRAW_SCALE - nodeHeight(g) / 2 };
+  }
+  // keep gates from overlapping: push the lower one down
+  const MARGIN = 14;
+  const placed: LogicNode[] = [];
+  for (const g of [...gates].sort((a, b) => a.position!.y - b.position!.y || a.position!.x - b.position!.x)) {
+    for (let guard = 0; guard < 200; guard++) {
+      const hit = placed.find((o) => {
+        const ox = o.position!.x < g.position!.x + GATE_W + MARGIN && g.position!.x < o.position!.x + GATE_W + MARGIN;
+        const oy = o.position!.y < g.position!.y + nodeHeight(g) + MARGIN && g.position!.y < o.position!.y + nodeHeight(o) + MARGIN;
+        return ox && oy;
+      });
+      if (!hit) break;
+      g.position = { x: g.position!.x, y: hit.position!.y + nodeHeight(hit) + MARGIN };
+    }
+    placed.push(g);
+  }
+  const rightX = Math.max(...gates.map((g) => g.position!.x + GATE_W)) + 70;
+  for (const side of ["DI", "DO"] as const) {
+    const col = nodes.filter((n) => n.type === side).sort((a, b) => drawY.get(b.id)! - drawY.get(a.id)!);
+    let y = -Infinity;
+    for (const n of col) {
+      const top = Math.max((topY - drawY.get(n.id)!) * DRAW_SCALE - nodeHeight(n) / 2, y);
+      n.position = { x: side === "DI" ? 0 : rightX, y: top };
+      y = top + nodeHeight(n) + GAP_Y;
+    }
+  }
+  compressGaps(nodes);
+  return true;
+}
+
+/**
  * Left-to-right layout. Columns come from signal depth (inputs, gates, outputs).
  * Vertical order follows the drawing: each node sits at its sheet row, and nodes
  * that would overlap are pushed down, so the picture reads like the original sheet.
  */
-function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, number>) {
+function layout(nodes: LogicNode[], edges: LogicEdge[], drawY: Map<string, number>, drawX: Map<string, number> = new Map()) {
+  if (layoutSheet(nodes, drawX, drawY)) return;
   const depth = new Map<string, number>();
   const preds = new Map<string, string[]>();
   for (const n of nodes) preds.set(n.id, []);
@@ -261,6 +309,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
 
   const portMaps = new Map<string, Record<string, string>>();
   const drawY = new Map<string, number>();
+  const drawX = new Map<string, number>();
   const nodes: LogicNode[] = rawNodes.map((rn) => {
     const params: Record<string, LogicParamValue> = {};
     for (const [k, v] of Object.entries(rn.params)) {
@@ -269,7 +318,10 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     }
     const m = mapNode(rn.type, params, rn.ports);
     portMaps.set(rn.id, m.portMap);
-    if (rn.pos) drawY.set(rn.id, rn.pos.y);
+    if (rn.pos) {
+      drawY.set(rn.id, rn.pos.y);
+      drawX.set(rn.id, rn.pos.x);
+    }
     return {
       id: rn.id,
       tag: stripNonEnglish(rn.tag) || stripNonEnglish(rn.id),
@@ -293,7 +345,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     });
   });
 
-  layout(nodes, edges, drawY);
+  layout(nodes, edges, drawY, drawX);
 
   const items: ReviewItem[] = nodes
     .filter((n) => n.needsReview)

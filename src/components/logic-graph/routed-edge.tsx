@@ -20,7 +20,7 @@ export function RoutedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosit
       <BaseEdge id={id} path={path} style={style} />
       {ok &&
         d?.junctions?.map((j, i) => (
-          <circle key={i} cx={j.x} cy={j.y} r={3.5} style={{ fill: style?.stroke as string | undefined }} className="pointer-events-none" />
+          <circle key={i} cx={j.x} cy={j.y} r={3.5} style={{ fill: style?.stroke as string | undefined, opacity: style?.opacity }} className="pointer-events-none" />
         ))}
     </>
   );

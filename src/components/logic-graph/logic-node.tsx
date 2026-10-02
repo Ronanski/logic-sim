@@ -17,11 +17,9 @@ export type LogicFlowNode = Node<
   "logic"
 >;
 
-const ROW = 20;
-const HEADER = 28;
 const TIMERS = ["TON", "TOF", "TP"];
 /** Gates whose ports are obvious do not need port labels. */
-const PLAIN = ["AND", "OR", "NOT"];
+
 /**
  * Logic gate symbols drawn in a 100 x 100 box that is stretched to the node size
  * (AND = flat back + round front, OR = bar + pointed front, NOT = triangle + bubble).
@@ -129,7 +127,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
             {n > 1 && (
               <span
                 className="absolute left-2 text-muted-foreground"
-                style={{ top: `calc(${pct(i)}% - ${ROW / 2}px)`, fontSize: 11 * b, lineHeight: `${ROW}px` }}
+                style={{ top: `calc(${pct(i)}% - 10px)`, fontSize: 11 * b, lineHeight: "20px" }}
               >
                 {p.name}
               </span>
@@ -143,48 +141,47 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
     );
   }
 
-  // Logic blocks: type on top, only the ports that matter below.
-  const rows = Math.max(node.inputs.length, node.outputs.length, 1);
-  const labelPorts = node.inputs.length > 1 || !PLAIN.includes(node.type);
-  const labelOut = !PLAIN.includes(node.type);
+  // Logic blocks: a compact box with the type name in the middle (like the AND / OR / NOT labels on the sheet).
+  // Port names are only shown where they matter (SR: S / R); timers show their time.
+  const inN = Math.max(node.inputs.length, 1);
+  const pct = (i: number, n: number) => ((i + 1) / (n + 1)) * 100;
+  const namedPorts = node.type === "SR";
   const extra = timerLabel(node);
   const showTag = node.tag && node.tag.toUpperCase() !== node.type;
-
   return (
     <div
-      className={cn("overflow-hidden rounded-md border-2 border-foreground/60 bg-secondary text-secondary-foreground", selected && "border-primary")}
+      className={cn(
+        "relative flex flex-col items-center justify-center rounded-md border-2 border-foreground/70 bg-secondary text-secondary-foreground",
+        selected && "border-primary",
+      )}
       style={{ width: GATE_W, height: nodeHeight(node) }}
       title={`${node.type}${showTag ? ` · ${node.tag}` : ""}${extra ? ` · ${extra}` : ""}`}
     >
-      <div className="flex items-center gap-2 border-b border-foreground/40 bg-foreground/20 px-2" style={{ height: HEADER }}>
+      <span className="flex items-center gap-1 text-[14px] font-bold leading-4 text-foreground">
         {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-        <span className="font-bold text-foreground" style={{ fontSize: 14 * b }}>{node.type}</span>
-        {(extra || showTag) && (
-          <span className="ml-auto truncate font-mono text-secondary-foreground" style={{ fontSize: 12 * b }}>{extra ?? node.tag}</span>
-        )}
-      </div>
-      <div className="relative" style={{ height: rows * ROW + 8 }}>
-        {node.inputs.map((p, i) => (
-          <div key={p.id}>
-            <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: 4 + i * ROW + ROW / 2 }} />
-            {labelPorts && (
-              <span className="absolute left-2 text-secondary-foreground" style={{ top: 4 + i * ROW, fontSize: 12 * b, lineHeight: `${ROW}px` }}>
-                {p.name}
-              </span>
-            )}
-          </div>
-        ))}
-        {node.outputs.map((p, i) => (
-          <div key={p.id}>
-            <Handle type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: 4 + i * ROW + ROW / 2 }} />
-            {labelOut && (
-              <span className="absolute right-2 text-secondary-foreground" style={{ top: 4 + i * ROW, fontSize: 12 * b, lineHeight: `${ROW}px` }}>
-                {p.name}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
+        {node.type}
+      </span>
+      {(extra || showTag) && <span className="font-mono text-[12px] leading-4 text-secondary-foreground">{extra ?? node.tag}</span>}
+      {node.inputs.map((p, i) => (
+        <div key={p.id}>
+          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i, inN)}%` }} />
+          {namedPorts && (
+            <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${pct(i, inN)}% - 7px)`, lineHeight: "14px" }}>
+              {p.name}
+            </span>
+          )}
+        </div>
+      ))}
+      {node.outputs.map((p) => (
+        <div key={p.id}>
+          <Handle type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: "50%" }} />
+          {namedPorts && (
+            <span className="absolute right-1.5 text-[11px] font-medium text-foreground" style={{ top: "calc(50% - 7px)", lineHeight: "14px" }}>
+              {p.name}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

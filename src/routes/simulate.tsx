@@ -165,6 +165,8 @@ function SimulatePage() {
   const [graphId, setGraphId] = useState(imported?.id ?? defaultGraph.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [routes, setRoutes] = useState<Record<string, Pt[]>>({});
+  const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
+  const [hoverEdgeId, setHoverEdgeId] = useState<string | null>(null);
   const [flowNodes, setFlowNodes] = useState<LogicFlowNode[]>(() => toFlowNodes(imported ?? defaultGraph));
 
   // Simulation execution state
@@ -425,11 +427,29 @@ function SimulatePage() {
     return junctionPoints(routes, netOf);
   }, [graph, routes]);
 
+  // Focus: hovering (or selecting) a node or wire highlights its whole net and dims everything else.
+  const focusNets = useMemo(() => {
+    const netOf = (e: LogicGraph["edges"][number]) => `${e.from.nodeId}:${e.from.portId}`;
+    const nets = new Set<string>();
+    const hoverEdge = hoverEdgeId ? graph.edges.find((e) => e.id === hoverEdgeId) : undefined;
+    if (hoverEdge) nets.add(netOf(hoverEdge));
+    else {
+      const id = hoverNodeId ?? selectedId;
+      if (!id) return null;
+      for (const e of graph.edges) if (e.from.nodeId === id || e.to.nodeId === id) nets.add(netOf(e));
+    }
+    return nets.size ? nets : null;
+  }, [graph, hoverNodeId, hoverEdgeId, selectedId]);
+  const hasSignals = Object.keys(signals).length > 0;
+
   const edges: Edge[] = useMemo(() => {
     return graph.edges.map((e) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
       const val = signals[srcKey];
       const isActive = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
+      const focused = !!focusNets && focusNets.has(`${e.from.nodeId}:${e.from.portId}`);
+      // Idle: thin dark wire like the printed sheet, blue when focused. Running: TRUE wires are blue.
+      const blue = isActive || (focused && !hasSignals);
 
       return {
         id: e.id,
@@ -441,13 +461,14 @@ function SimulatePage() {
         data: { points: routes[e.id], junctions: junctions[e.id] },
         animated: isActive,
         style: {
-          stroke: isActive ? "var(--primary)" : "var(--muted-foreground)",
-          strokeWidth: isActive ? 2.5 : 1.5,
-          transition: "stroke 150ms ease, stroke-width 150ms ease",
+          stroke: blue ? "var(--primary)" : "var(--foreground)",
+          strokeWidth: blue || focused ? 2.25 : 1.25,
+          opacity: focusNets && !focused ? 0.18 : 1,
+          transition: "stroke 150ms ease, stroke-width 150ms ease, opacity 150ms ease",
         },
       };
     });
-  }, [graph, signals, routes, junctions]);
+  }, [graph, signals, routes, junctions, focusNets, hasSignals]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);
@@ -594,7 +615,7 @@ function SimulatePage() {
         </div>
       </div>
 
-      <div ref={canvasRef} className="relative min-h-0 flex-1" style={flowTheme}>
+      <div ref={canvasRef} className="relative min-h-0 flex-1">
         <ReactFlow
           key={graphId}
           nodes={displayNodes}
@@ -606,7 +627,13 @@ function SimulatePage() {
           onNodeClick={(_, n) => { setSelectedId(n.id); setRightDrawerOpen(true); if (isMobile) setLeftDrawerOpen(false); }}
           onPaneClick={() => setSelectedId(null)}
           nodesConnectable={false}
-          colorMode="dark"
+          colorMode="light"
+          className="paper"
+          style={flowTheme}
+          onNodeMouseEnter={(_, n) => setHoverNodeId(n.id)}
+          onNodeMouseLeave={() => setHoverNodeId(null)}
+          onEdgeMouseEnter={(_, e) => setHoverEdgeId(e.id)}
+          onEdgeMouseLeave={() => setHoverEdgeId(null)}
           fitView
           minZoom={0.1}
           maxZoom={1.5}

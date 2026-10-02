@@ -33,3 +33,7 @@ These rules apply to **every** future change to LogicSim. Do not deviate.
 - Left sidebar (shadcn Sidebar, collapsible to icons): Import, Review, Simulate, Settings.
 - Main area: one route per section.
 
+
+## Exception: paper canvas (approved)
+- The Simulate logic canvas (and only the canvas) is light, like the printed drawing: thin dark wires and outlines on a white "paper" background. Everything else (app shell, drawers, toolbar) stays dark.
+- It is implemented as a `.paper` token scope in `src/styles.css` that redefines the same neutral-gray tokens (chroma <= 0.01). The single blue accent is unchanged. Components still use semantic tokens only; no hardcoded colors.
