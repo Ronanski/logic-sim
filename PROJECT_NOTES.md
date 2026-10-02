@@ -36,9 +36,15 @@ Update this file after every change.
   - Sample DITL-03A is the default graph; Simulate shows an Outputs lamp panel for imported graphs
   - Tests (`src/lib/import/__tests__/graph-json.test.ts`): each of the 18 OR inputs sets the latch, turns MFT outputs on and NO BOILER TRIP COMMAND off
 - [x] 2026-10-01 — Simulate redesigned as a full-viewport canvas workspace with collapsible input, output/parameter, and signal-monitor drawers plus fit-view and fullscreen controls
+- [x] 2026-10-02 — Browser DXF import (no Python, no server): `src/lib/import/dxf-parser.ts` (TypeScript port of the parser) + `dxf-batch.ts`; Import accepts many .dxf at once, shows per-file counts, parser report and a `check` / `ok` badge, and "Open" loads a sheet into Review (a single file opens Review automatically). .dwg / .pdf still go through `parseDrawing`
+- [x] 2026-10-02 — Timers: graph JSON `TON` / `TOF` / `TP` map to their own engine blocks (TIMER stays TP); new `TOF` off-delay block in the engine; TON also reads `durationSec`; parser maps `PULSE DELAY` to TP (seen on DITL-13)
+- [x] 2026-10-02 — Unknown node types in graph JSON are flagged `needsReview` (low confidence) instead of silently becoming AND
+- [x] 2026-10-02 — Tests: `src/lib/import/__tests__/dxf-import.test.ts` (fixtures: DITL-03A, 03B, 13 DXF): 03B = 5 inputs, AND -> TON 60 s, 16 outputs, no report lines
 
 ## Next
-- [ ] Connect a real drawing parser (set PARSER_API_URL; expects JSON `{ graph, items }`)
+- [ ] DWG: convert to DXF outside the app (e.g. ODA File Converter) or add a DWG reader; PARSER_API_URL path is now only needed for .dwg / .pdf
+- [ ] Link sheets by tag (output of one page feeds another) for cross-sheet simulation
+- [ ] Test 8–10 varied DXF sheets to find new symbols (XOR, comparators, etc.)
 - [ ] Use symbol library in the Import parser to assign block types
 - [ ] Persistence — decide on backend (e.g. Lovable Cloud) when real data arrives
 
