@@ -37,8 +37,6 @@ export interface LogicNode {
   needsReview: boolean;
   /** Optional layout hint for rendering. */
   position?: { x: number; y: number };
-  /** Optional y of each input port in px from the node top (set by the sheet layout so wires enter straight). */
-  portOffsets?: number[];
 }
 
 export interface LogicEdgeEndpoint {

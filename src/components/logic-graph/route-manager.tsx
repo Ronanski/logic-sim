@@ -38,6 +38,8 @@ export function RouteManager({ edges, onRoutes }: { edges: LogicEdge[]; onRoutes
           sy: a.internals.positionAbsolute.y + hs.y + hs.height / 2,
           tx: b.internals.positionAbsolute.x + ht.x,
           ty: b.internals.positionAbsolute.y + ht.y + ht.height / 2,
+          targetNode: e.to.nodeId,
+          sourceNode: e.from.nodeId,
         });
       }
       onRoutes(routeEdges(rects, reqs));
