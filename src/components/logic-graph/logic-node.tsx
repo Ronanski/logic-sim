@@ -48,12 +48,12 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   if (node.type === "DI" || node.type === "DO") {
     const { desc, addr, showDesc } = terminalText(node);
     const shortTag = node.tag.length <= 10 && !/\s/.test(node.tag.trim());
-    const text = showDesc ? desc : shortTag ? "" : node.tag;
+    const text = showDesc ? desc : node.tag;
     const tagCol = shortTag || showDesc;
     return (
       <div
         className={cn(
-          "relative flex items-center gap-3 overflow-visible rounded-md border border-foreground/30 bg-card px-3 text-card-foreground",
+          "relative grid grid-cols-[72px_minmax(0,1fr)_44px] items-center gap-2 overflow-visible rounded-md border border-foreground/30 bg-card px-3 text-card-foreground",
           selected && "border-primary",
         )}
         style={{ width: TERMINAL_W, height: nodeHeight(node) }}
@@ -65,29 +65,31 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
         {node.outputs.map((p) => (
           <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={handleSize} />
         ))}
-        {tagCol && (
-          <span className="flex w-16 shrink-0 items-center gap-1 text-[13px] font-semibold leading-4 tracking-wide text-foreground">
+        <span className="flex min-w-0 items-center gap-1 border-r border-border pr-2 font-mono text-[12px] font-semibold leading-4 text-foreground">
             {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-            <span className="min-w-0 break-words">{node.tag}</span>
+            <span className="min-w-0 break-words">{tagCol ? node.tag : node.type === "DI" ? "IN" : "OUT"}</span>
           </span>
-        )}
-        <span className="min-w-0 flex-1 break-words text-[13px] font-medium leading-4 tracking-wide text-foreground">{text}</span>
-        {addr && <span className="shrink-0 font-mono text-[12px] leading-4 text-secondary-foreground">{addr}</span>}
-        {node.type === "DI" && onToggle && (
-          <Switch
-            className="nodrag nopan"
-            checked={!!value}
-            onCheckedChange={() => onToggle()}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Force ${node.tag}`}
-          />
-        )}
-        {node.type === "DO" && (
-          <span
-            className={cn("h-4 w-4 shrink-0 rounded-full border", value ? "border-primary bg-primary" : "border-foreground/40 bg-muted")}
-            aria-label={value ? "On" : "Off"}
-          />
-        )}
+        <span className="flex min-w-0 flex-col justify-center gap-0.5">
+          <span className="min-w-0 break-words text-[13px] font-medium leading-[18px] text-foreground">{text}</span>
+          {addr && <span className="break-words font-mono text-[10px] leading-3 text-muted-foreground">{addr}</span>}
+        </span>
+        <span className="flex w-11 items-center justify-end">
+          {node.type === "DI" && onToggle && (
+            <Switch
+              className="nodrag nopan"
+              checked={!!value}
+              onCheckedChange={() => onToggle()}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Force ${node.tag}`}
+            />
+          )}
+          {node.type === "DO" && (
+            <span
+              className={cn("h-4 w-4 shrink-0 rounded-full border", value ? "border-primary bg-primary" : "border-foreground/40 bg-muted")}
+              aria-label={value ? "On" : "Off"}
+            />
+          )}
+        </span>
       </div>
     );
   }

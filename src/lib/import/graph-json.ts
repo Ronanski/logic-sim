@@ -106,7 +106,7 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 /** Sizes in canvas units. They must match logic-node.tsx. */
 export const TERMINAL_W = 420;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
-export const TERMINAL_H = 48;
+export const TERMINAL_H = 64;
 export const GATE_W = 88;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;

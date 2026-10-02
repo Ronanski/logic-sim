@@ -52,6 +52,7 @@ Update this file after every change.
 - [x] 2026-10-02 — Sheet-like layout + paper canvas: (1) gates are placed at their drawing position (x scaled 2.5-5 px/unit, y 6 px/unit, overlaps pushed down), inputs in a left column and outputs in a right column on their sheet rows (`layoutSheet` in `graph-json.ts`; sheets without positions keep the old column layout); (2) gates are compact 88 px boxes with the type name (and timer value) in the middle, no I1/I2 labels (SR keeps S / R / Q); (3) wires are thin 1.25 px dark lines; hovering or selecting a node or a wire highlights its whole net in blue (2.25 px) and dims the rest to 18% (running: TRUE wires are blue as before); (4) the Simulate canvas is a light "paper" canvas via a `.paper` token scope (exception documented in `DESIGN.md`, app shell and drawers stay dark; React Flow `colorMode="light"`)
 
 ## Next
+- [x] 2026-10-02 — Diagram UI pass: grid routing separates adjacent unrelated wires and preserves orthogonal handle stubs; directional arrowheads appear before each destination; input/output terminals align in fixed tag/description/status columns with room for wrapped labels; running mode no longer dims wires when hovering.
 - [ ] Wire readability: hop at non-connected crossings, net labels (e.g. M.0514, TR252) for very long wires
 - [ ] TO column as clickable link to the target sheet (ties into "Link sheets by tag")
 - [ ] DWG: convert to DXF outside the app (e.g. ODA File Converter) or add a DWG reader; PARSER_API_URL path is now only needed for .dwg / .pdf
