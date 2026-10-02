@@ -95,36 +95,95 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   // AND / OR / NOT drawn as real gate symbols. Inputs are spread evenly on the left, the output sits on the middle right.
   if (isSymbolGate(node)) {
     const n = Math.max(node.inputs.length, 1);
+    const isMultiInput = n >= 4;
     const pct = (i: number) => ((i + 1) / (n + 1)) * 100;
     const showTag = node.tag && node.tag.toUpperCase() !== node.type;
+    const h = nodeHeight(node);
+
     return (
-      <div className="relative" style={{ width: GATE_W, height: nodeHeight(node) }} title={`${node.type}${showTag ? ` · ${node.tag}` : ""}`}>
-        <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-          <path
-            d={SYMBOLS[node.type]}
-            className={cn("fill-card", selected ? "stroke-primary" : "stroke-muted-foreground")}
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
-        <div
-          className="pointer-events-none absolute flex flex-col items-center"
-          style={{ top: "50%", left: node.type === "NOT" ? "38%" : "55%", transform: "translate(-50%, -50%)" }}
-        >
-          <span className="flex items-center gap-1 font-semibold" style={{ fontSize: 12 * b }}>
-            {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-            {node.type}
-          </span>
-          {showTag && (
-            <span className="font-mono text-muted-foreground" style={{ fontSize: 11 * b }}>
-              {node.tag}
-            </span>
-          )}
-        </div>
+      <div className="relative" style={{ width: GATE_W, height: h }} title={`${node.type}${showTag ? ` · ${node.tag}` : ""}`}>
+        {isMultiInput ? (
+          <>
+            {/* CAD-style vertical input collector bus rail */}
+            <svg className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
+              {/* Vertical bus bar */}
+              <line
+                x1="10"
+                y1="14"
+                x2="10"
+                y2={h - 14}
+                className={selected ? "stroke-primary" : "stroke-foreground/70"}
+                strokeWidth={2}
+              />
+              {/* Input tap stubs */}
+              {node.inputs.map((_, i) => {
+                const py = (pct(i) / 100) * h;
+                return (
+                  <line
+                    key={i}
+                    x1="0"
+                    y1={py}
+                    x2="10"
+                    y2={py}
+                    className={selected ? "stroke-primary" : "stroke-foreground/70"}
+                    strokeWidth={1.5}
+                  />
+                );
+              })}
+              {/* Connection line from bus bar to central symbol */}
+              <line
+                x1="10"
+                y1={h / 2}
+                x2="22"
+                y2={h / 2}
+                className={selected ? "stroke-primary" : "stroke-foreground/70"}
+                strokeWidth={2}
+              />
+            </svg>
+            {/* Compact symbol in center */}
+            <div
+              className="absolute flex items-center justify-center rounded-full border bg-card shadow-xs"
+              style={{
+                left: "22px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: "36px",
+                height: "36px",
+              }}
+            >
+              <span className="font-bold text-xs">{node.type}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <svg className="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+              <path
+                d={SYMBOLS[node.type]}
+                className={cn("fill-card", selected ? "stroke-primary" : "stroke-muted-foreground")}
+                strokeWidth={1.5}
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            <div
+              className="pointer-events-none absolute flex flex-col items-center"
+              style={{ top: "50%", left: node.type === "NOT" ? "38%" : "55%", transform: "translate(-50%, -50%)" }}
+            >
+              <span className="flex items-center gap-1 font-semibold" style={{ fontSize: 12 * b }}>
+                {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
+                {node.type}
+              </span>
+              {showTag && (
+                <span className="font-mono text-muted-foreground" style={{ fontSize: 11 * b }}>
+                  {node.tag}
+                </span>
+              )}
+            </div>
+          </>
+        )}
         {node.inputs.map((p, i) => (
           <div key={p.id}>
             <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i)}%` }} />
-            {n > 1 && (
+            {n > 1 && !isMultiInput && (
               <span
                 className="absolute left-2 text-muted-foreground"
                 style={{ top: `calc(${pct(i)}% - 10px)`, fontSize: 11 * b, lineHeight: "20px" }}
@@ -144,9 +203,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   // Logic blocks: a compact box with the type name in the middle (like the AND / OR / NOT labels on the sheet).
   // Port names are only shown where they matter (SR: S / R); timers show their time.
   const inN = Math.max(node.inputs.length, 1);
-  // Ports sit on exact rows when the layout aligned them to their sources; otherwise they are spread evenly.
-  const portTop = (i: number, n: number) => (node.portOffsets?.[i] !== undefined ? `${node.portOffsets[i]}px` : `${((i + 1) / (n + 1)) * 100}%`);
-  const portTopCalc = (i: number, n: number, d: number) => (node.portOffsets?.[i] !== undefined ? `${node.portOffsets[i] - d}px` : `calc(${((i + 1) / (n + 1)) * 100}% - ${d}px)`);
+  const pct = (i: number, n: number) => ((i + 1) / (n + 1)) * 100;
   const namedPorts = node.type === "SR";
   const extra = timerLabel(node);
   const showTag = node.tag && node.tag.toUpperCase() !== node.type;
@@ -166,9 +223,9 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
       {(extra || showTag) && <span className="font-mono text-[12px] leading-4 text-secondary-foreground">{extra ?? node.tag}</span>}
       {node.inputs.map((p, i) => (
         <div key={p.id}>
-          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: portTop(i, inN) }} />
+          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i, inN)}%` }} />
           {namedPorts && (
-            <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: portTopCalc(i, inN, 7), lineHeight: "14px" }}>
+            <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${pct(i, inN)}% - 7px)`, lineHeight: "14px" }}>
               {p.name}
             </span>
           )}
