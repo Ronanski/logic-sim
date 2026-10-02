@@ -37,6 +37,12 @@ export interface LogicNode {
   needsReview: boolean;
   /** Optional layout hint for rendering. */
   position?: { x: number; y: number };
+  /** Native drawing geometry. Port y values are normalized 0..1 inside the node box. */
+  geometry?: {
+    width: number;
+    height: number;
+    ports?: Record<string, { side: "L" | "R"; y: number }>;
+  };
 }
 
 export interface LogicEdgeEndpoint {

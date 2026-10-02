@@ -63,6 +63,12 @@ export interface GraphNode {
   needsReview: boolean;
   /** Position on the drawing (DXF units, y up). Keeps the on-screen layout close to the sheet. */
   pos?: { x: number; y: number };
+  /** Native DXF geometry for rendering. Port Y values are normalized 0..1 inside the node box. */
+  geometry?: {
+    width: number;
+    height: number;
+    ports?: Record<string, { side: "L" | "R"; y: number }>;
+  };
 }
 export interface GraphEdge {
   from: { node: string; port: string };
@@ -699,9 +705,11 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
   const addNode = (id: string, tag: string, type: string, params: Record<string, unknown>,
-                   ports: GraphNode["ports"], review = false, conf = 1.0, pos?: { x: number; y: number }): string => {
+                   ports: GraphNode["ports"], review = false, conf = 1.0, pos?: { x: number; y: number },
+                   geometry?: GraphNode["geometry"]): string => {
     while (nodeIds.has(id)) id += "b";
-    nodes.push({ id, tag, type, params, ports, confidence: conf, needsReview: review, ...(pos ? { pos } : {}) });
+    nodes.push({ id, tag, type, params, ports, confidence: conf, needsReview: review,
+      ...(pos ? { pos } : {}), ...(geometry ? { geometry } : {}) });
     nodeIds.add(id);
     return id;
   };
@@ -715,7 +723,20 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
         .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
       pts = [...ins.map((p) => ({ id: p, dir: "in" as const })), { id: "O1", dir: "out" as const }];
     }
-    addNode(g.id, g.type.replace("_LATCH", ""), g.type, g.params ?? {}, pts, g.review ?? false, 1.0, { x: g.x, y: g.y });
+    const bw = Math.max(1, g.bbox[2] - g.bbox[0]);
+    const bh = Math.max(1, g.bbox[3] - g.bbox[1]);
+    const gp: Record<string, { side: "L" | "R"; y: number }> = {};
+    // Use the actual wire contact Y for each logical port. This is the critical
+    // difference between a DCS gate and a generic UI gate with evenly-spaced ports.
+    for (const c of contacts.filter((c) => c.gi === gi)) {
+      gp[c.port] = { side: c.kind === "in" ? "L" : "R", y: Math.max(0, Math.min(1, (c.y - g.bbox[1]) / bh)) };
+    }
+    // If an output has no contact yet, keep its native symbol center as a fallback.
+    for (const r of g.out) if (!gp[r.port]) {
+      gp[r.port] = { side: "R", y: Math.max(0, Math.min(1, ((r.ylo + r.yhi) / 2 - g.bbox[1]) / bh)) };
+    }
+    addNode(g.id, g.type.replace("_LATCH", ""), g.type, g.params ?? {}, pts, g.review ?? false, 1.0,
+      { x: g.x, y: g.y }, { width: bw, height: bh, ports: gp });
   });
 
   const sourceOf = new Map<number, [string, string][]>();
@@ -804,7 +825,20 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     const tPt = anchorFor(e.to.node, e.to.port);
     if (!sPt || !tPt) return;
     const path = shortestWirePath(sPt, tPt);
-    if (path && path.length >= 2) edgePaths[`e${i + 1}`] = path.map(([x, y]) => ({ x, y }));
+    if (path && path.length >= 2) {
+      const simplified: Pt[] = [];
+      for (const p of path) {
+        const prev = simplified[simplified.length - 2];
+        const last = simplified[simplified.length - 1];
+        if (last && prev) {
+          const collinear = (Math.abs(prev[0] - last[0]) < 0.05 && Math.abs(last[0] - p[0]) < 0.05) ||
+            (Math.abs(prev[1] - last[1]) < 0.05 && Math.abs(last[1] - p[1]) < 0.05);
+          if (collinear) { simplified[simplified.length - 1] = p; continue; }
+        }
+        simplified.push(p);
+      }
+      edgePaths[`e${i + 1}`] = (simplified.length >= 2 ? simplified : path).map(([x, y]) => ({ x, y }));
+    }
   });
 
   // labels inside the logic area that we did not recognise (new symbol types)

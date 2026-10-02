@@ -29,6 +29,11 @@ const schema = z.object({
         confidence: z.number().min(0).max(1).default(1),
         needsReview: z.boolean().default(false),
         pos: z.object({ x: z.number(), y: z.number() }).optional(),
+        geometry: z.object({
+          width: z.number().positive(),
+          height: z.number().positive(),
+          ports: z.record(z.string(), z.object({ side: z.enum(["L", "R"]), y: z.number().min(0).max(1) })).optional(),
+        }).optional(),
       }),
     )
     .max(2000),
@@ -113,7 +118,7 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 }
 
 /** Sizes in canvas units. They must match logic-node.tsx. */
-export const TERMINAL_W = 420;
+export const TERMINAL_W = 340;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 48;
 export const GATE_W = 88;
@@ -126,7 +131,7 @@ const TERM_PAD_Y = 12;
 /** Characters per wrapped line. Deliberately conservative so the whole text always fits. */
 const TERM_CHARS = 24;
 /** Draw AND / OR / NOT as logic gate symbols (set to false to go back to plain boxes). */
-export const SHOW_GATE_SYMBOLS = false;
+export const SHOW_GATE_SYMBOLS = true;
 /** Vertical space per input port on a gate symbol (about one signal row, so wires run straight in). */
 const SYMBOL_PITCH = 66;
 export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND", "OR", "NOT"].includes(n.type);
@@ -153,8 +158,8 @@ export function terminalHeight(_n?: LogicNode): number {
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
+  if (n.geometry?.height) return Math.max(44, n.geometry.height * (isSymbolGate(n) ? 1 : 1));
   if (isSymbolGate(n)) return Math.max(2, n.inputs.length + 1) * 28;
-  // Compact gate box: type name in the middle, one 20 px slot per port.
   return Math.max(44, Math.max(n.inputs.length, n.outputs.length, 1) * 20 + 12);
 };
 
@@ -340,6 +345,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
       outputs: m.outputs,
       confidence: m.forceReview ? Math.min(rn.confidence, 0.3) : rn.confidence,
       needsReview: rn.needsReview || !!m.forceReview,
+      ...(rn.geometry ? { geometry: rn.geometry } : {}),
     };
   });
 
@@ -365,17 +371,25 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     const allY = [...ys, ...edgePoints.map((p) => p.y)];
     const minX = Math.min(...allX);
     const maxY = Math.max(...allY);
-    // DCS drawing units are intentionally kept close to screen units. The whole sheet can then be fitView'ed.
-    const SCALE = 1.35;
+    // Preserve drawing proportions. Scale is derived from the actual signal-row spacing
+    // so imported rows do not collapse into overlapping ReactFlow nodes.
+    const terminalYs = nodes.filter((n) => n.type === "DI" || n.type === "DO")
+      .map((n) => drawY.get(n.id)!).sort((a, b) => b - a);
+    const gaps = terminalYs.map((v, i) => i ? Math.abs(terminalYs[i - 1] - v) : Infinity)
+      .filter((v) => Number.isFinite(v) && v > 0.5);
+    const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 10;
+    const SCALE = Math.max(2.2, Math.min(4.5, 62 / Math.max(1, medianGap)));
     for (const n of nodes) {
       const dx = drawX.get(n.id)!;
       const dy = drawY.get(n.id)!;
       const x = (dx - minX) * SCALE;
       const y = (maxY - dy) * SCALE;
+      const h = n.geometry ? Math.max(44, n.geometry.height * SCALE) : nodeHeight(n);
+      if (n.geometry) n.geometry = { ...n.geometry, width: GATE_W, height: h };
       // Parser positions are drawing anchors/centers. ReactFlow positions are top-left coordinates.
-      if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - nodeHeight(n) / 2 };
-      else if (n.type === "DO") n.position = { x, y: y - nodeHeight(n) / 2 };
-      else n.position = { x: x - GATE_W / 2, y: y - nodeHeight(n) / 2 };
+      if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - terminalHeight(n) / 2 };
+      else if (n.type === "DO") n.position = { x, y: y - terminalHeight(n) / 2 };
+      else n.position = { x: x - GATE_W / 2, y: y - h / 2 };
     }
     const edgePaths: Record<string, LogicPoint[]> = {};
     for (const [id, pts] of Object.entries(rawGeometry.edgePaths)) {

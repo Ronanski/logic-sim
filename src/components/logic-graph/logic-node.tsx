@@ -121,22 +121,27 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
             </span>
           )}
         </div>
-        {node.inputs.map((p, i) => (
-          <div key={p.id}>
-            <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i)}%` }} />
-            {n > 1 && (
-              <span
-                className="absolute left-2 text-muted-foreground"
-                style={{ top: `calc(${pct(i)}% - 10px)`, fontSize: 11 * b, lineHeight: "20px" }}
-              >
-                {p.name}
-              </span>
-            )}
-          </div>
-        ))}
-        {node.outputs.map((p) => (
-          <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: "50%" }} />
-        ))}
+        {node.inputs.map((p, i) => {
+          const nativeY = node.geometry?.ports?.[p.id]?.y;
+          const top = nativeY == null ? pct(i) : nativeY * 100;
+          return (
+            <div key={p.id}>
+              <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${top}%` }} />
+              {n > 1 && (
+                <span
+                  className="absolute left-2 text-muted-foreground"
+                  style={{ top: `calc(${top}% - 10px)`, fontSize: 11 * b, lineHeight: "20px" }}
+                >
+                  {p.name}
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {node.outputs.map((p) => {
+          const nativeY = node.geometry?.ports?.[p.id]?.y;
+          return <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: `${(nativeY == null ? 0.5 : nativeY) * 100}%` }} />;
+        })}
       </div>
     );
   }

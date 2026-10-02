@@ -26,7 +26,18 @@ export function RoutedEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosit
           if (Math.abs(z.x - pts![pts!.length - 1].x) >= Math.abs(z.y - pts![pts!.length - 1].y)) z.y = targetY;
           else z.x = targetX;
         }
-        return p;
+        // Native DCS routes are orthogonal. If a malformed imported point would create
+        // a diagonal segment, keep the original route and insert an orthogonal elbow.
+        const orth: Pt[] = [p[0]];
+        for (let i = 1; i < p.length; i++) {
+          const q = p[i];
+          const r = orth[orth.length - 1];
+          if (Math.abs(q.x - r.x) > 0.5 && Math.abs(q.y - r.y) > 0.5) {
+            orth.push({ x: q.x, y: r.y });
+          }
+          orth.push(q);
+        }
+        return orth;
       })()
     : undefined;
   const path = snapped
