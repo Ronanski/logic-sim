@@ -104,22 +104,51 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 }
 
 /** Sizes in canvas units. They must match logic-node.tsx. */
-export const TERMINAL_W = 232;
+export const TERMINAL_W = 320;
+/** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 44;
 export const GATE_W = 112;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
 const GATE_PAD = 8;
+/** Terminal text wraps instead of being cut off; these size the box so the full text fits. */
+const TERM_LINE_H = 18;
+const TERM_PAD_Y = 12;
+/** Characters per wrapped line. Deliberately conservative so the whole text always fits. */
+const TERM_CHARS = 24;
+/** Draw AND / OR / NOT as logic gate symbols (set to false to go back to plain boxes). */
+export const SHOW_GATE_SYMBOLS = true;
+/** Vertical space per input port on a gate symbol (about one signal row, so wires run straight in). */
+const SYMBOL_PITCH = 66;
+export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND", "OR", "NOT"].includes(n.type);
 /** Space between columns, used by the wire router for its channels. */
 const COL_GAP = 80;
 const GAP_Y = 12;
 /** Screen units per drawing unit (sheet rows are ~9 units apart). */
-const DRAW_SCALE = 6;
+const DRAW_SCALE = 9;
 /** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
 const MAX_BAND_GAP = 40;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
-export const nodeHeight = (n: LogicNode) =>
-  isTerminal(n) ? TERMINAL_H : GATE_HEADER + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_ROW + GATE_PAD;
+
+/** Text shown inside a terminal box: tag (+ address) and, when different, the description. */
+export function terminalText(n: LogicNode) {
+  const desc = typeof n.params.description === "string" ? n.params.description : "";
+  const addr = typeof n.params.address === "string" ? n.params.address : "";
+  return { desc, addr, showDesc: !!desc && desc !== n.tag };
+}
+
+export function terminalHeight(n: LogicNode): number {
+  const { desc, addr, showDesc } = terminalText(n);
+  const tagLines = Math.max(1, Math.ceil((n.tag.length + (addr ? addr.length + 2 : 0)) / TERM_CHARS));
+  const descLines = showDesc ? Math.max(1, Math.ceil(desc.length / TERM_CHARS)) : 0;
+  return Math.max(TERMINAL_H, TERM_PAD_Y + (tagLines + descLines) * TERM_LINE_H);
+}
+
+export const nodeHeight = (n: LogicNode) => {
+  if (isTerminal(n)) return terminalHeight(n);
+  if (isSymbolGate(n)) return n.inputs.length > 1 ? (n.inputs.length + 1) * SYMBOL_PITCH : 64;
+  return GATE_HEADER + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_ROW + GATE_PAD;
+};
 
 function compressGaps(nodes: LogicNode[]) {
   const iv = nodes.map((n) => [n.position!.y, n.position!.y + nodeHeight(n)] as [number, number]).sort((a, b) => a[0] - b[0]);
