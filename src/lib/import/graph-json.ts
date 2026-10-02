@@ -104,10 +104,10 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 }
 
 /** Sizes in canvas units. They must match logic-node.tsx. */
-export const TERMINAL_W = 340;
+export const TERMINAL_W = 420;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
-export const TERMINAL_H = 56;
-export const GATE_W = 112;
+export const TERMINAL_H = 48;
+export const GATE_W = 128;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
 const GATE_PAD = 8;
@@ -123,11 +123,11 @@ const SYMBOL_PITCH = 66;
 export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND", "OR", "NOT"].includes(n.type);
 /** Space between columns, used by the wire router for its channels. */
 const COL_GAP = 90;
-const GAP_Y = 16;
+const GAP_Y = 8;
 /** Screen units per drawing unit (sheet rows are ~9 units apart). */
-const DRAW_SCALE = 6;
+const DRAW_SCALE = 4;
 /** Empty vertical bands taller than this are shortened so the whole sheet stays compact. */
-const MAX_BAND_GAP = 40;
+const MAX_BAND_GAP = 24;
 const isTerminal = (n: LogicNode) => n.type === "DI" || n.type === "DO";
 
 /** Text shown inside a terminal box: tag (+ address) and, when different, the description. */

@@ -45,15 +45,14 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   const b = 1;
   const handleSize = { width: 6 * b, height: 6 * b };
 
-  // Signal terminals: one box with tag, address and the full description (text wraps, nothing is cut off).
+  // Signal terminals: every box has the same size. Left: tag (+ address); right: the description, wrapped (nothing is cut off).
   if (node.type === "DI" || node.type === "DO") {
     const { desc, addr, showDesc } = terminalText(node);
-    // Terminal text grows with zoom-out, but only up to 1.25x so the wrapped text always fits its box.
-    const tb = Math.min(b, 1.25);
+    const text = showDesc ? desc : "";
     return (
       <div
         className={cn(
-          "relative flex flex-col justify-center gap-0 overflow-visible rounded-md border bg-card px-2 text-card-foreground",
+          "relative flex items-center gap-2 overflow-visible rounded-md border border-foreground/30 bg-card px-2 text-card-foreground",
           selected && "border-primary",
         )}
         style={{ width: TERMINAL_W, height: nodeHeight(node) }}
@@ -65,40 +64,29 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
         {node.outputs.map((p) => (
           <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={handleSize} />
         ))}
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="flex items-start gap-2 font-semibold" style={{ fontSize: 12 * tb, lineHeight: `${Math.round(14 * tb)}px` }}>
-              {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-              <span className="min-w-0 break-words">{node.tag}</span>
-              {addr && (
-                <span className="ml-auto shrink-0 font-mono font-normal text-muted-foreground" style={{ fontSize: 11 * tb }}>
-                  {addr}
-                </span>
-              )}
-            </span>
-            {showDesc && (
-              <span className="break-words text-muted-foreground" style={{ fontSize: 11 * tb, lineHeight: `${Math.round(14 * tb)}px` }}>
-                {desc}
-              </span>
-            )}
-          </div>
-          {node.type === "DI" && onToggle && (
-            <Switch
-              className="nodrag nopan"
-              checked={!!value}
-              onCheckedChange={() => onToggle()}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={`Force ${node.tag}`}
-            />
-          )}
-          {node.type === "DO" && (
-            <span
-              className={cn("shrink-0 rounded-full border", value ? "border-primary bg-primary" : "bg-muted")}
-              style={{ width: 16 * Math.min(b, 1.4), height: 16 * Math.min(b, 1.4) }}
-              aria-label={value ? "On" : "Off"}
-            />
-          )}
+        <div className="flex w-24 shrink-0 flex-col justify-center border-r border-foreground/20 pr-2">
+          <span className="flex items-center gap-1 text-[13px] font-semibold leading-[16px] text-foreground">
+            {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
+            <span className="min-w-0 break-words">{node.tag}</span>
+          </span>
+          {addr && <span className="font-mono text-[11px] leading-[14px] text-secondary-foreground">{addr}</span>}
         </div>
+        <span className="min-w-0 flex-1 break-words text-[13px] font-medium leading-[15px] text-foreground">{text}</span>
+        {node.type === "DI" && onToggle && (
+          <Switch
+            className="nodrag nopan"
+            checked={!!value}
+            onCheckedChange={() => onToggle()}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Force ${node.tag}`}
+          />
+        )}
+        {node.type === "DO" && (
+          <span
+            className={cn("h-4 w-4 shrink-0 rounded-full border", value ? "border-primary bg-primary" : "border-foreground/40 bg-muted")}
+            aria-label={value ? "On" : "Off"}
+          />
+        )}
       </div>
     );
   }
@@ -161,15 +149,15 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
 
   return (
     <div
-      className={cn("rounded-md border bg-card text-card-foreground", selected && "border-primary")}
+      className={cn("overflow-hidden rounded-md border-2 border-foreground/50 bg-card text-card-foreground", selected && "border-primary")}
       style={{ width: GATE_W, height: nodeHeight(node) }}
       title={`${node.type}${showTag ? ` · ${node.tag}` : ""}${extra ? ` · ${extra}` : ""}`}
     >
-      <div className="flex items-center gap-2 border-b px-2" style={{ height: HEADER }}>
+      <div className="flex items-center gap-2 border-b border-foreground/30 bg-secondary px-2" style={{ height: HEADER }}>
         {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
-        <span className="font-semibold" style={{ fontSize: 12 * b }}>{node.type}</span>
+        <span className="font-bold text-foreground" style={{ fontSize: 14 * b }}>{node.type}</span>
         {(extra || showTag) && (
-          <span className="ml-auto truncate font-mono text-muted-foreground" style={{ fontSize: 11 * b }}>{extra ?? node.tag}</span>
+          <span className="ml-auto truncate font-mono text-secondary-foreground" style={{ fontSize: 12 * b }}>{extra ?? node.tag}</span>
         )}
       </div>
       <div className="relative" style={{ height: rows * ROW + 8 }}>
@@ -177,7 +165,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           <div key={p.id}>
             <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: 4 + i * ROW + ROW / 2 }} />
             {labelPorts && (
-              <span className="absolute left-2 text-muted-foreground" style={{ top: 4 + i * ROW, fontSize: 11 * b, lineHeight: `${ROW}px` }}>
+              <span className="absolute left-2 text-secondary-foreground" style={{ top: 4 + i * ROW, fontSize: 12 * b, lineHeight: `${ROW}px` }}>
                 {p.name}
               </span>
             )}
@@ -187,7 +175,7 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           <div key={p.id}>
             <Handle type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: 4 + i * ROW + ROW / 2 }} />
             {labelOut && (
-              <span className="absolute right-2 text-muted-foreground" style={{ top: 4 + i * ROW, fontSize: 11 * b, lineHeight: `${ROW}px` }}>
+              <span className="absolute right-2 text-secondary-foreground" style={{ top: 4 + i * ROW, fontSize: 12 * b, lineHeight: `${ROW}px` }}>
                 {p.name}
               </span>
             )}
