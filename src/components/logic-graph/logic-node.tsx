@@ -157,13 +157,6 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
       style={{ width: GATE_W, height: nodeHeight(node) }}
       title={`${node.type}${showTag ? ` · ${node.tag}` : ""}${extra ? ` · ${extra}` : ""}`}
     >
-      {node.inputs.length > 1 && (node.type === "AND" || node.type === "OR") && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -left-3 border-l border-foreground/70"
-          style={{ top: `${100 / (inN + 1)}%`, bottom: `${100 / (inN + 1)}%` }}
-        />
-      )}
       <span className="flex items-center gap-1 text-[14px] font-bold leading-4 text-foreground">
         {node.needsReview && <AlertTriangle className="h-3 w-3 shrink-0 text-primary" aria-label="Needs review" />}
         {node.type}

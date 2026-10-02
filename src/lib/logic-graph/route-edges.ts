@@ -24,9 +24,6 @@ export interface RouteRequest {
   sy: number;
   tx: number;
   ty: number;
-  /** Optional semantic grouping for faithful multi-input / multi-output bus routing. */
-  targetNode?: string;
-  sourceNode?: string;
 }
 
 const CELL = 10;
@@ -83,91 +80,9 @@ class Heap {
   }
 }
 
-function simplifyOrthogonal(points: Pt[]): Pt[] {
-  const clean: Pt[] = [];
-  for (const p of points) {
-    const last = clean[clean.length - 1];
-    if (last && Math.abs(last.x - p.x) < 0.01 && Math.abs(last.y - p.y) < 0.01) continue;
-    clean.push({ ...p });
-    while (clean.length >= 3) {
-      const a = clean[clean.length - 3];
-      const b = clean[clean.length - 2];
-      const c = clean[clean.length - 1];
-      const collinear =
-        (Math.abs(a.x - b.x) < 0.01 && Math.abs(b.x - c.x) < 0.01) ||
-        (Math.abs(a.y - b.y) < 0.01 && Math.abs(b.y - c.y) < 0.01);
-      if (!collinear) break;
-      clean.splice(clean.length - 2, 1);
-    }
-  }
-  return clean;
-}
-
 export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, Pt[]> {
   const out: Record<string, Pt[]> = {};
   if (!reqs.length) return out;
-
-  // Engineering-drawing style bus routing. Multiple inputs entering the same gate
-  // use one vertical receiving spine immediately beside the gate, then each signal
-  // runs horizontally into that spine. This is intentionally preferred over A*
-  // because the source drawings use this convention for OR/AND input banks.
-  const BUS_GAP = 18;
-  const busGroups = new Map<string, RouteRequest[]>();
-  for (const q of reqs) {
-    if (!q.targetNode) continue;
-    const key = `in:${q.targetNode}`;
-    if (!busGroups.has(key)) busGroups.set(key, []);
-    busGroups.get(key)!.push(q);
-  }
-  for (const group of busGroups.values()) {
-    if (group.length < 2) continue;
-    const tx = group[0].tx;
-    // Only use the gate-input spine when all inputs approach from the left.
-    if (!group.every((q) => q.sx < q.tx - 2 && Math.abs(q.tx - tx) < 2)) continue;
-    const spineX = tx - BUS_GAP;
-    for (const q of group) {
-      const points: Pt[] = Math.abs(q.sy - q.ty) < 0.5
-        ? [
-            { x: q.sx, y: q.sy },
-            { x: q.tx, y: q.ty },
-          ]
-        : [
-            { x: q.sx, y: q.sy },
-            { x: spineX, y: q.sy },
-            { x: spineX, y: q.ty },
-            { x: q.tx, y: q.ty },
-          ];
-      out[q.id] = simplifyOrthogonal(points);
-    }
-  }
-
-  // Same convention for fan-out: one short vertical spine immediately after a
-  // source node, with horizontal branches to the receiving nodes.
-  const outGroups = new Map<string, RouteRequest[]>();
-  for (const q of reqs) {
-    if (!q.sourceNode || out[q.id]) continue;
-    const key = `out:${q.sourceNode}`;
-    if (!outGroups.has(key)) outGroups.set(key, []);
-    outGroups.get(key)!.push(q);
-  }
-  for (const group of outGroups.values()) {
-    if (group.length < 2) continue;
-    const sx = group[0].sx;
-    if (!group.every((q) => q.tx > q.sx + 2 && Math.abs(q.sx - sx) < 2)) continue;
-    const spineX = sx + BUS_GAP;
-    for (const q of group) {
-      out[q.id] = simplifyOrthogonal(
-        Math.abs(q.sy - q.ty) < 0.5
-          ? [{ x: q.sx, y: q.sy }, { x: q.tx, y: q.ty }]
-          : [
-              { x: q.sx, y: q.sy },
-              { x: spineX, y: q.sy },
-              { x: spineX, y: q.ty },
-              { x: q.tx, y: q.ty },
-            ],
-      );
-    }
-  }
 
   let minX = Infinity;
   let minY = Infinity;
@@ -222,7 +137,6 @@ export function routeEdges(rects: Rect[], reqs: RouteRequest[]): Record<string, 
   const order = [...reqs].sort((a, b) => Math.abs(a.tx - a.sx) + Math.abs(a.ty - a.sy) - (Math.abs(b.tx - b.sx) + Math.abs(b.ty - b.sy)));
 
   for (const q of order) {
-    if (out[q.id]) continue;
     const net = code(q.net);
     const si = Math.max(0, Math.min(W - 1, ci(q.sx + STUB)));
     const sj = Math.max(0, Math.min(H - 1, cj(q.sy)));
