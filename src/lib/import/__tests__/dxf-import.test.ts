@@ -44,7 +44,16 @@ describe("DXF import", () => {
     const { graph } = load("_8_DITL-03A.dxf");
     eq((graph.nodes.filter((n) => n.type === "DI")).length, 21);
     eq((graph.nodes.filter((n) => n.type === "TP")).length, 1);
-    eq(!!graph.geometry && Object.keys(graph.geometry.edgePaths).length > 0, true);
+    eq(!!graph.geometry && Object.keys(graph.geometry.netPaths ?? {}).length > 0, true);
+    const tp = graph.nodes.find((n) => n.type === "TP")!;
+    const purge = graph.nodes.find((n) => n.tag === "BOILER PURGE COMPLETED")!;
+    assert.ok(tp.position && purge.position && Math.abs(tp.position.x - purge.position.x) > 20, "timer should use its native drawing position");
+    assert.ok(graph.edges.some((e) => e.to.nodeId === tp.id && e.to.portId === "in"), "timer input should be connected");
+    assert.ok(graph.edges.some((e) => e.from.nodeId === tp.id && e.from.portId === "q"), "timer output should be connected");
+    const or = graph.nodes.find((n) => n.type === "OR")!;
+    assert.ok(or.geometry?.ports?.I1?.y !== undefined && (or.geometry?.ports?.I1?.y ?? 0) > 1, "OR receiving-trunk port should retain its native Y outside the small symbol body");
+    assert.ok(or.geometry?.bounds, "OR should carry its native DXF bounding box");
+    assert.ok(Math.abs((or.geometry?.ports?.I1?.x ?? 0) - (or.geometry?.ports?.I18?.x ?? 0)) < 0.01, "OR trunk ports should share one native entry X");
   });
 
   it("DITL-13: PULSE DELAY is recognised as TP, OFF DELAY as TOF, no unknown labels", () => {

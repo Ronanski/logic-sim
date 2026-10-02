@@ -1,5 +1,4 @@
-import { parseDxfFile } from "./dxf-parser";
-import { convertGraphJson } from "./graph-json";
+import { parseDrawing } from "./parse-drawing.functions";
 import type { LogicGraph } from "@/lib/logic-graph/types";
 import type { ReviewItem } from "@/lib/review/review-store";
 
@@ -9,26 +8,27 @@ export interface DxfImportResult {
   error?: string;
   graph?: LogicGraph;
   items: ReviewItem[];
-  /** Parser report lines (unknown labels, broken nets, nodes to review). */
   report: string[];
-  /** True when the sheet needs a human look. */
   check: boolean;
   counts: { inputs: number; outputs: number; gates: number };
 }
 
 const emptyCounts = { inputs: 0, outputs: 0, gates: 0 };
 
-/** Parse one DXF entirely in the browser (no server, no Python). */
+/**
+ * DXF import entrypoint. Parsing now occurs through the server function so the backend
+ * produces the authoritative graph + physical geometry; the browser only renders it.
+ */
 export async function importDxf(file: File): Promise<DxfImportResult> {
   try {
-    const { graph: raw, report } = await parseDxfFile(file);
-    const { graph, items } = convertGraphJson(raw, file.name.replace(/\.dxf$/i, ""));
+    const result = await parseDrawing(file);
     const counts = {
-      inputs: graph.nodes.filter((n) => n.type === "DI").length,
-      outputs: graph.nodes.filter((n) => n.type === "DO").length,
-      gates: graph.nodes.filter((n) => n.type !== "DI" && n.type !== "DO").length,
+      inputs: result.graph.nodes.filter((n) => n.type === "DI").length,
+      outputs: result.graph.nodes.filter((n) => n.type === "DO").length,
+      gates: result.graph.nodes.filter((n) => n.type !== "DI" && n.type !== "DO").length,
     };
-    return { fileName: file.name, ok: true, graph, items, report, check: report.length > 0, counts };
+    const report = result.report ?? [];
+    return { fileName: file.name, ok: true, graph: result.graph, items: result.items, report, check: report.length > 0, counts };
   } catch (err) {
     return {
       fileName: file.name,

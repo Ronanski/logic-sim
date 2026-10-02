@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getMockImport, type ReviewItem } from "@/lib/review/review-store";
+import { parseDxfFile } from "@/lib/import/dxf-parser";
+import { convertGraphJson } from "@/lib/import/graph-json";
 import type { LogicGraph } from "@/lib/logic-graph/types";
 
 export const ALLOWED_EXTENSIONS = [".dxf", ".dwg", ".pdf"] as const;
@@ -9,7 +11,8 @@ export const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 export interface ParseResult {
   graph: LogicGraph;
   items: ReviewItem[];
-  source: "api" | "mock";
+  report?: string[];
+  source: "dxf-server" | "api" | "mock";
 }
 
 const resultSchema = z.object({
@@ -35,6 +38,14 @@ export const parseDrawingFn = createServerFn({ method: "POST" })
     return { file };
   })
   .handler(async ({ data }): Promise<ParseResult> => {
+    const ext = data.file.name.slice(data.file.name.lastIndexOf(".")).toLowerCase();
+    if (ext === ".dxf") {
+      // DXF parsing is authoritative server-side. The returned graph already contains
+      // the physical net geometry used by the simulator renderer.
+      const raw = await parseDxfFile(data.file);
+      const converted = convertGraphJson(raw.graph, data.file.name.replace(/\.dxf$/i, ""));
+      return { graph: converted.graph, items: converted.items, report: raw.report, source: "dxf-server" };
+    }
     const url = process.env["PARSER_API_URL"]?.trim();
     if (!url) {
       return { ...getMockImport(data.file.name), source: "mock" };

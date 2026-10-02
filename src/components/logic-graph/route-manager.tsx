@@ -4,8 +4,8 @@ import { useReactFlow, useStore } from "@xyflow/react";
 import type { LogicEdge } from "@/lib/logic-graph/types";
 import { routeEdges, type Pt, type RouteRequest } from "@/lib/logic-graph/route-edges";
 
-/** Lives inside <ReactFlow>. Once nodes are measured (and after they stop moving) it routes every wire. */
-export function RouteManager({ edges, nativeRoutes, onRoutes }: { edges: LogicEdge[]; nativeRoutes?: Record<string, Pt[]>; onRoutes: (r: Record<string, Pt[]>) => void }) {
+/** Lives inside <ReactFlow>. Only non-native/synthetic edges are routed here. */
+export function RouteManager({ edges, nativeRoutes, nativeNetEdges, onRoutes }: { edges: LogicEdge[]; nativeRoutes?: Record<string, Pt[]>; nativeNetEdges?: Record<string, string>; onRoutes: (r: Record<string, Pt[]>) => void }) {
   const rf = useReactFlow();
   const sig = useStore((s) => {
     let out = "";
@@ -26,7 +26,7 @@ export function RouteManager({ edges, nativeRoutes, onRoutes }: { edges: LogicEd
       });
       const reqs: RouteRequest[] = [];
       for (const e of edges) {
-        if (nativeRoutes?.[e.id]?.length >= 2) continue;
+        if (nativeRoutes?.[e.id]?.length >= 2 || nativeNetEdges?.[e.id]) continue;
         const a = rf.getInternalNode(e.from.nodeId);
         const b = rf.getInternalNode(e.to.nodeId);
         const hs = a?.internals.handleBounds?.source?.find((h) => h.id === e.from.portId);
@@ -44,7 +44,7 @@ export function RouteManager({ edges, nativeRoutes, onRoutes }: { edges: LogicEd
       onRoutes({ ...(nativeRoutes ?? {}), ...routeEdges(rects, reqs) });
     }, 250);
     return () => clearTimeout(t);
-  }, [sig, edges, nativeRoutes, rf, onRoutes]);
+  }, [sig, edges, nativeRoutes, nativeNetEdges, rf, onRoutes]);
 
   return null;
 }

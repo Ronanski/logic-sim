@@ -1,7 +1,7 @@
 # LogicSim — Project Notes
 
 Purpose: import engineering drawings and simulate control logic.
-Current phase: **foundation only** — no backend, no authentication.
+Current phase: **DXF geometry reconstruction + simulation foundation**. DXF parsing is server-side; authentication is not implemented.
 
 Update this file after every change.
 
@@ -51,6 +51,9 @@ Update this file after every change.
 - [x] 2026-10-02 — Readability v3: terminal text fixed (a tag that is just the description, e.g. outputs, now fills the wide wrapped column instead of a 96 px column that overflowed; short plant tags like 09-74 keep a left column; address sits on the right; 13 px medium, 16 px line height, wider tracking, full-contrast); logic gate boxes use the lighter `bg-secondary` body, a lighter header band and a 60% foreground 2 px border so they stand out from the canvas
 - [x] 2026-10-02 — Sheet-like layout + paper canvas: (1) gates are placed at their drawing position (x scaled 2.5-5 px/unit, y 6 px/unit, overlaps pushed down), inputs in a left column and outputs in a right column on their sheet rows (`layoutSheet` in `graph-json.ts`; sheets without positions keep the old column layout); (2) gates are compact 88 px boxes with the type name (and timer value) in the middle, no I1/I2 labels (SR keeps S / R / Q); (3) wires are thin 1.25 px dark lines; hovering or selecting a node or a wire highlights its whole net in blue (2.25 px) and dims the rest to 18% (running: TRUE wires are blue as before); (4) the Simulate canvas is a light "paper" canvas via a `.paper` token scope (exception documented in `DESIGN.md`, app shell and drawers stay dark; React Flow `colorMode="light"`)
 
+- [x] 2026-10-03 — DXF geometry V6 baseline: added the DITL-00 DXF symbol reference under `public/symbol-library/DITL-00.dxf` plus `src/lib/symbol-library/ditl00-symbols.ts`; native DXF geometry remains the source of truth for node placement and wire paths; common-signal routing uses shared net/junction geometry; gate ports use native terminal anchors; hover behavior no longer dims/hides wires; live-signal rendering keeps animated flow while using a red live-state highlight.
+- [x] 2026-10-03 — Geometry regression set defined: use DITL-02, DITL-03A and DITL-13 as the primary visual regression sheets for row alignment, overlapping terminals, gate placement, port attachment, trunk/fan-out behavior, junctions and wire continuity.
+
 ## Next
 - [ ] Wire readability: hop at non-connected crossings, net labels (e.g. M.0514, TR252) for very long wires
 - [ ] TO column as clickable link to the target sheet (ties into "Link sheets by tag")
@@ -62,6 +65,38 @@ Update this file after every change.
 
 
 
-## DXF geometry V3
-- Imported terminal heights are calibrated from native DXF row spacing to prevent overlapping input/output cards.
-- Native edge paths are preserved; live ReactFlow handles connect with short orthogonal bridges instead of mutating the DXF route.
+## Current DXF geometry rules
+- Native DXF coordinates are the source of truth for sheet placement; do not introduce a second auto-layout for imported sheets.
+- Native DXF wire segments should be preserved and rendered as continuous orthogonal paths where possible.
+- A shared signal/net should be represented by one physical trunk with junction points for branches, rather than duplicated overlapping edges.
+- Gate input/output ports should anchor to the detected DXF terminal/contact coordinates; generated bridge segments are only a fallback for small rendering gaps.
+- DITL-00 is the reference symbol sheet for gate geometry/signatures (AND, OR, NOT, TON/TOF/TP, SR and related symbols).
+- ReactFlow UI boxes are presentation wrappers around drawing anchors; their dimensions must not redefine the imported drawing geometry.
+- Known remaining validation targets: terminal-card overlap in dense rows, exact gate placement on all sheets, port contact alignment, non-connected crossings, and long-wire continuity.
+### V7 — physical-net geometry / backend DXF parsing
+
+- DXF imports are parsed server-side through the TanStack Start server function. The DXF browser batch path must not rebuild geometry client-side.
+- The parser outputs physical DXF wire nets (`netPaths`) and logical-edge-to-net mapping (`edgeNets`) so a shared trunk/branch is rendered once, with real junction points (`netJunctions`).
+- ReactFlow is a view of parser geometry, not a layout engine for imported sheets. Node positions and port Y coordinates are derived from the same DXF coordinate transform used for native wire geometry.
+- Recognized timer symbols use their actual parsed DXF geometry; timers are never synthesized at the input row.
+- A* / routeEdges is fallback only for non-native synthetic edges.
+- Regression set: DITL-02, DITL-03A, DITL-13.
+
+- [x] 2026-10-03 — Native geometry fidelity v7.1: multi-input OR ports retain their real DXF Y coordinates even when the receiving trunk extends far beyond the small OR body; port X/Y are no longer clamped to 0..1, timer `TRxxx` recognition uses the nearest external conductor endpoint instead of absorbing an entire wire, and a generic timer-only small-gap rule restores directly touching labelled I/O rows without diagram-specific coordinates. Unlabelled free wire stubs remain hidden as phantom terminal cards. Live physical nets derive animation from any live logical edge on the net.
+- [x] 2026-10-03 — DXF import remains backend-authoritative: `.dxf` upload enters `parseDrawing()` on the TanStack Start server, then the server returns parser-generated graph geometry to the browser; ReactFlow does not rebuild imported sheet geometry.
+
+### Current geometry acceptance target
+- Primary acceptance sheet: `DITL-03A`. It must preserve the original multi-input OR receiving trunk, gate positions, physical junctions, timer row, and output branch geometry without diagram-specific coordinates or hardcoded node placement.
+- Secondary regression: `DITL-02` and `DITL-13`.
+- Do not replace native geometry with A* or auto-layout unless a physical DXF path is genuinely unavailable.
+
+## V7.2 — native symbol anchoring / no hardcoded sheet coordinates
+- Primary acceptance target remains DITL-03A, with DITL-02 and DITL-13 as regression sheets.
+- Parser now returns the exact detected DXF symbol bounding box (`geometry.bounds`) in addition to width/height and native ports.
+- Backend conversion anchors imported logic nodes by the transformed native DXF bounding-box origin, not by a generic centered card. This keeps symbol bodies, native wires, and port coordinates in one coordinate frame.
+- Gate port X is derived from the detected symbol boundary; physical wire contact Y is retained. When the DXF has a small symbol-to-conductor gap, the backend adds a short orthogonal bridge to the native net path.
+- Shared physical nets are rendered once; branch points remain junctions. No per-diagram coordinates or hardcoded gate positions are used.
+- Native AND/OR/NOT symbol sizes use the detected DXF geometry rather than a fixed oversized minimum.
+- Acceptance checks added for DITL-03A native bounds and shared OR receiving-trunk X.
+- Native gate bounding boxes now use the detected symbol extents without artificial padding, preventing tiny terminal-card/symbol overlaps such as the DITL-03A timer row.
+- Native symbol bounds are stored separately from the parser's small wire-filtering bbox: topology keeps its tolerance, while rendering uses exact detected symbol extents.

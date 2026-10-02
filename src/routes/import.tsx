@@ -137,7 +137,7 @@ function ImportPage() {
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Import</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Upload .dxf drawings (several at once is fine), or one .dwg / .pdf (up to {MAX_FILE_BYTES / 1048576} MB each). DXF files are read in your browser.
+          Upload .dxf drawings (several at once is fine), or one .dwg / .pdf (up to {MAX_FILE_BYTES / 1048576} MB each). DXF files are parsed on the server to preserve authoritative drawing geometry.
         </p>
       </div>
 

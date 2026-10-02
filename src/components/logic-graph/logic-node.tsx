@@ -122,18 +122,44 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
           )}
         </div>
         {node.inputs.map((p, i) => {
-          const nativeY = node.geometry?.ports?.[p.id]?.y;
-          const top = nativeY == null ? pct(i) : nativeY * 100;
+          const native = node.geometry?.ports?.[p.id];
+          const top = native == null ? pct(i) : native.y * 100;
+          const left = native?.x;
           return (
             <div key={p.id}>
-              <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${top}%`, transform: "translateY(-50%)" }} />
-              {/* Port IDs (I1/I2/I3...) are intentionally hidden to keep the imported DCS sheet clean. */}
+              <Handle
+                type="target"
+                position={Position.Left}
+                id={p.id}
+                style={{
+                  ...handleSize,
+                  ...(left == null ? {} : { left: `${left * 100}%`, right: "auto" }),
+                  top: `${top}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+              {/* Port IDs intentionally hidden; exact native DXF port position is preserved. */}
             </div>
           );
         })}
         {node.outputs.map((p) => {
-          const nativeY = node.geometry?.ports?.[p.id]?.y;
-          return <Handle key={p.id} type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: `${(nativeY == null ? 0.5 : nativeY) * 100}%`, transform: "translateY(-50%)" }} />;
+          const native = node.geometry?.ports?.[p.id];
+          const top = (native == null ? 0.5 : native.y) * 100;
+          const left = native?.x;
+          return (
+            <Handle
+              key={p.id}
+              type="source"
+              position={Position.Right}
+              id={p.id}
+              style={{
+                ...handleSize,
+                ...(left == null ? {} : { left: `${left * 100}%`, right: "auto" }),
+                top: `${top}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+          );
         })}
       </div>
     );
@@ -144,6 +170,10 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
   const inN = Math.max(node.inputs.length, 1);
   const pct = (i: number, n: number) => ((i + 1) / (n + 1)) * 100;
   const boxWidth = node.geometry?.width ?? GATE_W;
+  const nativePort = (portId: string, fallbackX: number, fallbackY: number) => {
+    const p = node.geometry?.ports?.[portId];
+    return { x: (p?.x ?? fallbackX) * 100, y: (p?.y ?? fallbackY) * 100 };
+  };
   const namedPorts = node.type === "SR";
   const extra = timerLabel(node);
   const showTag = node.tag && node.tag.toUpperCase() !== node.type;
@@ -161,26 +191,54 @@ export function LogicNodeView({ data, selected }: NodeProps<LogicFlowNode>) {
         {node.type}
       </span>
       {(extra || showTag) && <span className="font-mono text-[12px] leading-4 text-secondary-foreground">{extra ?? node.tag}</span>}
-      {node.inputs.map((p, i) => (
-        <div key={p.id}>
-          <Handle type="target" position={Position.Left} id={p.id} style={{ ...handleSize, top: `${pct(i, inN)}%`, transform: "translateY(-50%)" }} />
-          {namedPorts && (
-            <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${pct(i, inN)}% - 7px)`, lineHeight: "14px" }}>
-              {p.name}
-            </span>
-          )}
-        </div>
-      ))}
-      {node.outputs.map((p) => (
-        <div key={p.id}>
-          <Handle type="source" position={Position.Right} id={p.id} style={{ ...handleSize, top: "50%", transform: "translateY(-50%)" }} />
-          {namedPorts && (
-            <span className="absolute right-1.5 text-[11px] font-medium text-foreground" style={{ top: "calc(50% - 7px)", lineHeight: "14px" }}>
-              {p.name}
-            </span>
-          )}
-        </div>
-      ))}
+      {node.inputs.map((p, i) => {
+        const native = nativePort(p.id, 0, pct(i, inN) / 100);
+        return (
+          <div key={p.id}>
+            <Handle
+              type="target"
+              position={Position.Left}
+              id={p.id}
+              style={{
+                ...handleSize,
+                left: `${native.x}%`,
+                right: "auto",
+                top: `${native.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+            {namedPorts && (
+              <span className="absolute left-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${native.y}% - 7px)`, lineHeight: "14px" }}>
+                {p.name}
+              </span>
+            )}
+          </div>
+        );
+      })}
+      {node.outputs.map((p) => {
+        const native = nativePort(p.id, 1, 0.5);
+        return (
+          <div key={p.id}>
+            <Handle
+              type="source"
+              position={Position.Right}
+              id={p.id}
+              style={{
+                ...handleSize,
+                left: `${native.x}%`,
+                right: "auto",
+                top: `${native.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+            {namedPorts && (
+              <span className="absolute right-1.5 text-[11px] font-medium text-foreground" style={{ top: `calc(${native.y}% - 7px)`, lineHeight: "14px" }}>
+                {p.name}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
