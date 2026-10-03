@@ -37,12 +37,6 @@ export interface LogicNode {
   needsReview: boolean;
   /** Optional layout hint for rendering. */
   position?: { x: number; y: number };
-  /** Native drawing geometry. Port y values are normalized 0..1 inside the node box. */
-  geometry?: {
-    width: number;
-    height: number;
-    ports?: Record<string, { side: "L" | "R"; y: number }>;
-  };
 }
 
 export interface LogicEdgeEndpoint {
@@ -56,24 +50,11 @@ export interface LogicEdge {
   to: LogicEdgeEndpoint;
 }
 
-export interface LogicPoint {
-  x: number;
-  y: number;
-}
-
-/** Geometry preserved from an imported drawing. Screen coordinates are produced by graph-json. */
-export interface ImportedGeometry {
-  source: "DXF";
-  edgePaths: Record<string, LogicPoint[]>;
-}
-
 export interface LogicGraph {
   id: string;
   name: string;
   description?: string;
   nodes: LogicNode[];
   edges: LogicEdge[];
-  /** Original DXF path geometry, when available. The renderer should prefer these paths over re-routing. */
-  geometry?: ImportedGeometry;
 }
 

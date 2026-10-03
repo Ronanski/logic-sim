@@ -11,7 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { RoutedEdge } from "@/components/logic-graph/routed-edge";
 import { RouteManager } from "@/components/logic-graph/route-manager";
-import { bundleNetRoutes, junctionPoints, type Pt } from "@/lib/logic-graph/route-edges";
+import { junctionPoints, type Pt } from "@/lib/logic-graph/route-edges";
 import {
   Activity,
   ChevronDown,
@@ -165,6 +165,8 @@ function SimulatePage() {
   const [graphId, setGraphId] = useState(imported?.id ?? defaultGraph.id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [routes, setRoutes] = useState<Record<string, Pt[]>>({});
+  const [hoverNodeId, setHoverNodeId] = useState<string | null>(null);
+  const [hoverEdgeId, setHoverEdgeId] = useState<string | null>(null);
   const [flowNodes, setFlowNodes] = useState<LogicFlowNode[]>(() => toFlowNodes(imported ?? defaultGraph));
 
   // Simulation execution state
@@ -418,29 +420,37 @@ function SimulatePage() {
     [flowNodes, signals, forcedInputs],
   );
 
-  // Physical DXF nets are rendered once. Multiple logical edges that share a source
-  // therefore appear as one trunk with branch/junction geometry instead of stacked lines.
-  const netOf = useMemo(() => {
-    const out: Record<string, string> = {};
-    for (const e of graph.edges) out[e.id] = `${e.from.nodeId}:${e.from.portId}`;
-    return out;
-  }, [graph]);
+  // Active wire calculation
+  const junctions = useMemo(() => {
+    const netOf: Record<string, string> = {};
+    for (const e of graph.edges) netOf[e.id] = `${e.from.nodeId}:${e.from.portId}`;
+    return junctionPoints(routes, netOf);
+  }, [graph, routes]);
 
-  const junctions = useMemo(() => junctionPoints(routes, netOf), [routes, netOf]);
-  const netBundles = useMemo(() => bundleNetRoutes(routes, netOf), [routes, netOf]);
+  // Focus: hovering (or selecting) a node or wire highlights its whole net and dims everything else.
+  const focusNets = useMemo(() => {
+    const netOf = (e: LogicGraph["edges"][number]) => `${e.from.nodeId}:${e.from.portId}`;
+    const nets = new Set<string>();
+    const hoverEdge = hoverEdgeId ? graph.edges.find((e) => e.id === hoverEdgeId) : undefined;
+    if (hoverEdge) nets.add(netOf(hoverEdge));
+    else {
+      const id = hoverNodeId ?? selectedId;
+      if (!id) return null;
+      for (const e of graph.edges) if (e.from.nodeId === id || e.to.nodeId === id) nets.add(netOf(e));
+    }
+    return nets.size ? nets : null;
+  }, [graph, hoverNodeId, hoverEdgeId, selectedId]);
+  const hasSignals = Object.keys(signals).length > 0;
 
   const edges: Edge[] = useMemo(() => {
     return graph.edges.map((e) => {
       const srcKey = makePortKey(e.from.nodeId, e.from.portId);
       const val = signals[srcKey];
       const isActive = typeof val === "boolean" ? val : typeof val === "number" && val > 0;
-      // Idle: thin dark wire like the printed sheet. Live TRUE signals are red.
-      // Keep ReactFlow's animated edge/dash behavior for live signals.
-      const live = isActive;
+      const focused = !!focusNets && focusNets.has(`${e.from.nodeId}:${e.from.portId}`);
+      // Idle: thin dark wire like the printed sheet, blue when focused. Running: TRUE wires are blue.
+      const blue = isActive || (focused && !hasSignals);
 
-      const net = netOf[e.id];
-      const bundle = netBundles[net];
-      const bundleOwner = !!bundle && bundle.owner === e.id;
       return {
         id: e.id,
         source: e.from.nodeId,
@@ -448,22 +458,17 @@ function SimulatePage() {
         target: e.to.nodeId,
         targetHandle: e.to.portId,
         type: "routed",
-        data: {
-          points: routes[e.id],
-          junctions: junctions[e.id],
-          bundlePath: bundle?.path,
-          bundleOwner: bundle ? bundleOwner : undefined,
-        },
-        animated: live,
+        data: { points: routes[e.id], junctions: junctions[e.id] },
+        animated: isActive,
         style: {
-          stroke: live ? "#ef4444" : "var(--foreground)",
-          strokeWidth: live ? 2.25 : 1.25,
-          opacity: 1,
-          transition: "stroke 150ms ease, stroke-width 150ms ease",
+          stroke: blue ? "var(--primary)" : "var(--foreground)",
+          strokeWidth: blue || focused ? 2.25 : 1.25,
+          opacity: focusNets && !focused ? 0.18 : 1,
+          transition: "stroke 150ms ease, stroke-width 150ms ease, opacity 150ms ease",
         },
       };
     });
-  }, [graph, signals, routes, junctions, netOf, netBundles]);
+  }, [graph, signals, routes, junctions, focusNets, hasSignals]);
 
   const switchGraph = (id: string) => {
     const next = graphs.find((g) => g.id === id);
@@ -625,6 +630,10 @@ function SimulatePage() {
           colorMode="light"
           className="paper"
           style={flowTheme}
+          onNodeMouseEnter={(_, n) => setHoverNodeId(n.id)}
+          onNodeMouseLeave={() => setHoverNodeId(null)}
+          onEdgeMouseEnter={(_, e) => setHoverEdgeId(e.id)}
+          onEdgeMouseLeave={() => setHoverEdgeId(null)}
           fitView
           minZoom={0.1}
           maxZoom={1.5}
@@ -632,7 +641,7 @@ function SimulatePage() {
           proOptions={{ hideAttribution: true }}
         >
           <Background gap={16} />
-          <RouteManager edges={graph.edges} nativeRoutes={graph.geometry?.edgePaths} onRoutes={setRoutes} />
+          <RouteManager edges={graph.edges} onRoutes={setRoutes} />
         </ReactFlow>
 
         <aside className={`absolute inset-y-0 left-0 z-10 flex w-72 max-w-[calc(100%-3rem)] flex-col border-r bg-card transition-transform duration-150 ${leftDrawerOpen ? "translate-x-0" : "-translate-x-full"}`}>

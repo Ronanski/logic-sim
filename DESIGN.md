@@ -37,18 +37,3 @@ These rules apply to **every** future change to LogicSim. Do not deviate.
 ## Exception: paper canvas (approved)
 - The Simulate logic canvas (and only the canvas) is light, like the printed drawing: thin dark wires and outlines on a white "paper" background. Everything else (app shell, drawers, toolbar) stays dark.
 - It is implemented as a `.paper` token scope in `src/styles.css` that redefines the same neutral-gray tokens (chroma <= 0.01). The single blue accent is unchanged. Components still use semantic tokens only; no hardcoded colors.
-## Imported DCS geometry rules
-- For imported DXF sheets, preserve the original drawing coordinate relationships. Imported node placement must be derived from DXF geometry, not a generic left-to-right auto-layout.
-- Common signals must render as a shared wire trunk/net with explicit junction dots at branch/merge points. Do not duplicate the same physical wire path on top of itself.
-- Logic-gate ports are anchored to detected DXF contact points. Any ReactFlow handle or short bridge is an adapter to the native path, not a replacement for it.
-- Wires must remain visible regardless of cursor hover. Hover/selection may highlight a net but must not hide, fade out, or remove the underlying path.
-- Live signal state is shown with a red wire highlight plus the existing animated dash/flow treatment; static wires remain neutral.
-- The DITL-00 DXF in `public/symbol-library/` is the canonical reference source for native DCS symbol geometry.
-- Regression sheets: DITL-02, DITL-03A, DITL-13.
-
-
-
-## V8 Stable Geometry Baseline
-- Geometry changes are allowed only when they preserve the existing native DXF edge-path pipeline.
-- Do not introduce a parallel net/routing representation for imported wires.
-- Validate `DITL-03A` after every geometry change before touching other sheets.

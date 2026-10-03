@@ -38,16 +38,4 @@ cd <repository-name>
 npm i
 npm run dev
 ```
-## Current DXF import status
-- Browser-native DXF parsing is implemented for imported sheets.
-- Native drawing geometry is preserved for imported node placement and wire routing.
-- DITL-00 is bundled as the local symbol-geometry reference.
-- Primary geometry regression sheets: DITL-02, DITL-03A, DITL-13.
-- The Simulate canvas uses the paper-style presentation while the application shell remains dark.
 
-
-
-## V8 Stable Geometry Baseline
-- Geometry changes are allowed only when they preserve the existing native DXF edge-path pipeline.
-- Do not introduce a parallel net/routing representation for imported wires.
-- Validate `DITL-03A` after every geometry change before touching other sheets.

@@ -63,32 +63,14 @@ export interface GraphNode {
   needsReview: boolean;
   /** Position on the drawing (DXF units, y up). Keeps the on-screen layout close to the sheet. */
   pos?: { x: number; y: number };
-  /** Native DXF geometry for rendering. Port Y values are normalized 0..1 inside the node box. */
-  geometry?: {
-    width: number;
-    height: number;
-    ports?: Record<string, { side: "L" | "R"; y: number }>;
-  };
 }
 export interface GraphEdge {
   from: { node: string; port: string };
   to: { node: string; port: string };
 }
-export interface GraphPoint {
-  x: number;
-  y: number;
-}
-
-export interface GraphGeometry {
-  source: "DXF";
-  /** One original orthogonal wire path per logical edge, in raw DXF coordinates (Y up). */
-  edgePaths: Record<string, GraphPoint[]>;
-}
-
 export interface Graph {
   nodes: GraphNode[];
   edges: GraphEdge[];
-  geometry?: GraphGeometry;
 }
 export interface ParseResult {
   graph: Graph;
@@ -231,7 +213,6 @@ interface Terminal {
   x: number;
   y: number;
   side: "L" | "R";
-  wi: number;
 }
 
 // ------------------------------------------------------------ parser
@@ -361,7 +342,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
         continue;
       }
       gates.push({
-        type: "AND", id: "", x: (r.l[0] + r.r[0]) / 2, y: (r.top + r.bot) / 2,
+        type: "AND", id: "", x: r.l[0], y: (r.top + r.bot) / 2,
         in: [{ x: r.l[0], ylo: r.l[1], yhi: r.l[2], port: "in" }],
         out: [{ x: r.r[0], ylo: r.bot, yhi: r.top, port: "O1" }],
         bbox: [r.l[0] - 0.3, r.bot - 0.3, r.r[0] + 0.3, r.top + 0.3],
@@ -373,7 +354,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
         continue;
       }
       gates.push({
-        type: "NOT", id: "", x: (b.xl + b.xr) / 2, y: (b.top + b.bot) / 2,
+        type: "NOT", id: "", x: b.xl, y: (b.top + b.bot) / 2,
         in: [{ x: b.xl, ylo: b.bot, yhi: b.top, port: "I1" }],
         out: [{ x: b.xr, ylo: b.bot, yhi: b.top, port: "O1" }],
         bbox: [b.xl - 0.3, b.bot - 0.3, b.xr + 0.3, b.top + 0.3],
@@ -403,7 +384,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
       }
     }
     gates.push({
-      type: kind, id: "", x: (leftX + a[0] + a[2]) / 2, y: a[1],
+      type: kind, id: "", x: leftX, y: a[1],
       params: { durationSec: value !== null ? value * unit : S.pulse_default_sec },
       review: value === null,
       in: [{ x: leftX, ylo: a[1] - a[2], yhi: a[1] + a[2], port: "I1" }],
@@ -431,7 +412,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     const lx = sRect.l[0];
     const rx = sRect.r[0];
     gates.push({
-      type: "SR_LATCH", id: "", x: (lx + rx) / 2, y: (sRect.top + rRect.bot) / 2,
+      type: "SR_LATCH", id: "", x: lx, y: (sRect.top + rRect.bot) / 2,
       in: [
         { x: lx, ylo: sRect.bot, yhi: sRect.top, port: "S" },
         { x: lx, ylo: rRect.bot, yhi: rRect.top, port: "R" },
@@ -531,7 +512,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
   const terminals: Terminal[] = [];
   ends.forEach((en, k) => {
     if (touched.has(k) || Math.abs(en.p[1] - en.o[1]) > 0.05) return;
-    terminals.push({ root: uf.f(en.i), x: en.p[0], y: en.p[1], side: en.p[0] < en.o[0] ? "L" : "R", wi: en.i });
+    terminals.push({ root: uf.f(en.i), x: en.p[0], y: en.p[1], side: en.p[0] < en.o[0] ? "L" : "R" });
   });
 
   // input port numbering for AND / OR (top to bottom)
@@ -597,119 +578,13 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     return out;
   };
 
-  /**
-   * Build an exact-ish graph over the original orthogonal DXF wire segments.
-   * We split a segment only at its own endpoints touching another segment, or at explicit junction dots;
-   * ordinary crossings therefore remain crossings, not connections.
-   */
-  const pointKey = (p: Pt) => `${Math.round(p[0] * 100)},${Math.round(p[1] * 100)}`;
-  const onSegment = (p: Pt, a: Pt, b: Pt, eps = Math.max(tol, 0.8)) => {
-    if (Math.abs(a[1] - b[1]) < 0.05) {
-      return Math.abs(p[1] - a[1]) <= eps && p[0] >= Math.min(a[0], b[0]) - eps && p[0] <= Math.max(a[0], b[0]) + eps;
-    }
-    if (Math.abs(a[0] - b[0]) < 0.05) {
-      return Math.abs(p[0] - a[0]) <= eps && p[1] >= Math.min(a[1], b[1]) - eps && p[1] <= Math.max(a[1], b[1]) + eps;
-    }
-    return false;
-  };
-  interface WireVertex { p: Pt; links: Set<string>; }
-  const wireVertices = new Map<string, WireVertex>();
-  const vertex = (p: Pt) => {
-    const k = pointKey(p);
-    let v = wireVertices.get(k);
-    if (!v) { v = { p, links: new Set<string>() }; wireVertices.set(k, v); }
-    return v;
-  };
-
-  // Start with every segment endpoint. Endpoint-on-segment contacts are the DCS-style junction rule.
-  for (let i = 0; i < wires.length; i++) {
-    const [a, b] = segOf(wires[i]);
-    vertex(a); vertex(b);
-  }
-  for (let i = 0; i < wires.length; i++) {
-    const root = uf.f(i);
-    const [a, b] = segOf(wires[i]);
-    for (let j = 0; j < ends.length; j++) {
-      const en = ends[j];
-      if (uf.f(en.i) !== root) continue;
-      if (en.i === i) continue;
-      if (onSegment(en.p, a, b)) vertex(en.p);
-    }
-  }
-  for (const d of dots) {
-    wires.forEach((w, i) => {
-      if (distPtSeg(d, ...segOf(w)) <= 0.8) vertex(d);
-    });
-  }
-  // Connect consecutive split points along each original segment.
-  for (let i = 0; i < wires.length; i++) {
-    const root = uf.f(i);
-    const [a, b] = segOf(wires[i]);
-    const ps: Pt[] = [];
-    for (const v of wireVertices.values()) {
-      if (onSegment(v.p, a, b)) ps.push(v.p);
-    }
-    ps.sort((p1, p2) => Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]) ? p1[0] - p2[0] : p1[1] - p2[1]);
-    for (let k = 0; k + 1 < ps.length; k++) {
-      const ka = pointKey(ps[k]);
-      const kb = pointKey(ps[k + 1]);
-      const va = wireVertices.get(ka)!;
-      const vb = wireVertices.get(kb)!;
-      // Link keys only inside the same union-find net.
-      if (uf.f(i) === root) { va.links.add(kb); vb.links.add(ka); }
-    }
-  }
-
-  const shortestWirePath = (start: Pt, target: Pt): Pt[] | null => {
-    const sk = pointKey(start);
-    const tk = pointKey(target);
-    if (!wireVertices.has(sk) || !wireVertices.has(tk)) return null;
-    if (sk === tk) return [start, target];
-    const distMap = new Map<string, number>([[sk, 0]]);
-    const prev = new Map<string, string>();
-    const queue: { k: string; d: number }[] = [{ k: sk, d: 0 }];
-    while (queue.length) {
-      queue.sort((a, b) => a.d - b.d);
-      const cur = queue.shift()!;
-      if (cur.d !== distMap.get(cur.k)) continue;
-      if (cur.k === tk) break;
-      const cv = wireVertices.get(cur.k)!;
-      for (const nk of cv.links) {
-        const nv = wireVertices.get(nk)!;
-        const step = dist(cv.p, nv.p);
-        const nd = cur.d + step;
-        if (nd < (distMap.get(nk) ?? Infinity)) {
-          distMap.set(nk, nd);
-          prev.set(nk, cur.k);
-          queue.push({ k: nk, d: nd });
-        }
-      }
-    }
-    if (!prev.has(tk)) return null;
-    const keys = [tk];
-    while (keys[keys.length - 1] !== sk) keys.push(prev.get(keys[keys.length - 1])!);
-    keys.reverse();
-    return keys.map((k) => wireVertices.get(k)!.p);
-  };
-
-  // Physical anchor of each recognized logical port.
-  const portAnchor = new Map<string, Pt>();
-  contacts.forEach((c) => {
-    const g = gates[c.gi];
-    portAnchor.set(`${g.id}:${c.port}`, ends.find((en) => en.i === c.wi && Math.abs(en.p[1] - c.y) < 0.3)?.p ?? [g.x, g.y]);
-  });
-
-  const terminalAnchorByNode = new Map<string, Pt>();
-
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
   const addNode = (id: string, tag: string, type: string, params: Record<string, unknown>,
-                   ports: GraphNode["ports"], review = false, conf = 1.0, pos?: { x: number; y: number },
-                   geometry?: GraphNode["geometry"]): string => {
+                   ports: GraphNode["ports"], review = false, conf = 1.0, pos?: { x: number; y: number }): string => {
     while (nodeIds.has(id)) id += "b";
-    nodes.push({ id, tag, type, params, ports, confidence: conf, needsReview: review,
-      ...(pos ? { pos } : {}), ...(geometry ? { geometry } : {}) });
+    nodes.push({ id, tag, type, params, ports, confidence: conf, needsReview: review, ...(pos ? { pos } : {}) });
     nodeIds.add(id);
     return id;
   };
@@ -723,20 +598,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
         .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
       pts = [...ins.map((p) => ({ id: p, dir: "in" as const })), { id: "O1", dir: "out" as const }];
     }
-    const bw = Math.max(1, g.bbox[2] - g.bbox[0]);
-    const bh = Math.max(1, g.bbox[3] - g.bbox[1]);
-    const gp: Record<string, { side: "L" | "R"; y: number }> = {};
-    // Use the actual wire contact Y for each logical port. This is the critical
-    // difference between a DCS gate and a generic UI gate with evenly-spaced ports.
-    for (const c of contacts.filter((c) => c.gi === gi)) {
-      gp[c.port] = { side: c.kind === "in" ? "L" : "R", y: Math.max(0, Math.min(1, (c.y - g.bbox[1]) / bh)) };
-    }
-    // If an output has no contact yet, keep its native symbol center as a fallback.
-    for (const r of g.out) if (!gp[r.port]) {
-      gp[r.port] = { side: "R", y: Math.max(0, Math.min(1, ((r.ylo + r.yhi) / 2 - g.bbox[1]) / bh)) };
-    }
-    addNode(g.id, g.type.replace("_LATCH", ""), g.type, g.params ?? {}, pts, g.review ?? false, 1.0,
-      { x: g.x, y: g.y }, { width: bw, height: bh, ports: gp });
+    addNode(g.id, g.type.replace("_LATCH", ""), g.type, g.params ?? {}, pts, g.review ?? false, 1.0, { x: g.x, y: g.y });
   });
 
   const sourceOf = new Map<number, [string, string][]>();
@@ -774,15 +636,12 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     if (addr) params.address = addr;
     if (tag) params.from = tag;
     sid = addNode(sid, tag || desc || sid, "signal", params, [{ id: "O1", dir: "out" }], !(tag || desc), 1.0, { x, y });
-    terminalAnchorByNode.set(sid, [x, y]);
     let src: [string, string] = [sid, "O1"];
     if (timer) {
       const taddr = tx.find((t) => addrRe.test(t.text) && Math.abs(t.y - y) <= S.row_band && x < t.x && t.x < x + 60)?.text ?? "";
       const tid = addNode(`TIMER-${timer.text}`, timer.text, "TIMER",
         { kind: "pulse", durationSec: S.pulse_default_sec, address: taddr },
         [{ id: "I1", dir: "in" }, { id: "O1", dir: "out" }], true, 0.5, { x, y });
-      terminalAnchorByNode.set(`${tid}:I1`, [x, y]);
-      terminalAnchorByNode.set(`${tid}:O1`, [x, y]);
       edges.push({ from: { node: sid, port: "O1" }, to: { node: tid, port: "I1" } });
       src = [tid, "O1"];
     }
@@ -800,7 +659,6 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
     const params: Record<string, unknown> = { description: desc, role: "output", ...tableCells(ti) };
     if (addr) params.address = addr;
     const oid = addNode(`OUT-${outI}`, desc || `OUT-${outI}`, "signal", params, [{ id: "I1", dir: "in" }], !desc, 1.0, { x, y: terminals[ti].y });
-    terminalAnchorByNode.set(oid, [x, terminals[ti].y]);
     lst(sinkOf, root).push([oid, "I1"]);
   }
 
@@ -812,34 +670,6 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
       }
     }
   }
-
-  // Preserve the original DXF path for every edge whose endpoints are physical drawing ports.
-  // Synthetic timer edges deliberately fall back to normal routing.
-  const edgePaths: Record<string, GraphPoint[]> = {};
-  const anchorFor = (nodeId: string, portId: string): Pt | null => {
-    const direct = portAnchor.get(`${nodeId}:${portId}`) ?? terminalAnchorByNode.get(`${nodeId}:${portId}`) ?? terminalAnchorByNode.get(nodeId);
-    return direct ? direct : null;
-  };
-  edges.forEach((e, i) => {
-    const sPt = anchorFor(e.from.node, e.from.port);
-    const tPt = anchorFor(e.to.node, e.to.port);
-    if (!sPt || !tPt) return;
-    const path = shortestWirePath(sPt, tPt);
-    if (path && path.length >= 2) {
-      const simplified: Pt[] = [];
-      for (const p of path) {
-        const prev = simplified[simplified.length - 2];
-        const last = simplified[simplified.length - 1];
-        if (last && prev) {
-          const collinear = (Math.abs(prev[0] - last[0]) < 0.05 && Math.abs(last[0] - p[0]) < 0.05) ||
-            (Math.abs(prev[1] - last[1]) < 0.05 && Math.abs(last[1] - p[1]) < 0.05);
-          if (collinear) { simplified[simplified.length - 1] = p; continue; }
-        }
-        simplified.push(p);
-      }
-      edgePaths[`e${i + 1}`] = (simplified.length >= 2 ? simplified : path).map(([x, y]) => ({ x, y }));
-    }
-  });
 
   // labels inside the logic area that we did not recognise (new symbol types)
   const known = new Set<string>([...S.gate_words.map((w) => w.toUpperCase()), "S", "R",
@@ -868,7 +698,7 @@ export function parseDxfText(text: string, S: Settings = DEFAULT_SETTINGS): Pars
   }
   for (const nd of nodes) if (nd.needsReview) report.push(`Please review: ${nd.id} (${nd.type})`);
 
-  return { graph: { nodes, edges, ...(Object.keys(edgePaths).length ? { geometry: { source: "DXF" as const, edgePaths } } : {}) }, report };
+  return { graph: { nodes, edges }, report };
 }
 
 /** Convenience wrapper for a File picked/dropped in the browser. */

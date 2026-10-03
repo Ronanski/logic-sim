@@ -51,9 +51,6 @@ Update this file after every change.
 - [x] 2026-10-02 — Readability v3: terminal text fixed (a tag that is just the description, e.g. outputs, now fills the wide wrapped column instead of a 96 px column that overflowed; short plant tags like 09-74 keep a left column; address sits on the right; 13 px medium, 16 px line height, wider tracking, full-contrast); logic gate boxes use the lighter `bg-secondary` body, a lighter header band and a 60% foreground 2 px border so they stand out from the canvas
 - [x] 2026-10-02 — Sheet-like layout + paper canvas: (1) gates are placed at their drawing position (x scaled 2.5-5 px/unit, y 6 px/unit, overlaps pushed down), inputs in a left column and outputs in a right column on their sheet rows (`layoutSheet` in `graph-json.ts`; sheets without positions keep the old column layout); (2) gates are compact 88 px boxes with the type name (and timer value) in the middle, no I1/I2 labels (SR keeps S / R / Q); (3) wires are thin 1.25 px dark lines; hovering or selecting a node or a wire highlights its whole net in blue (2.25 px) and dims the rest to 18% (running: TRUE wires are blue as before); (4) the Simulate canvas is a light "paper" canvas via a `.paper` token scope (exception documented in `DESIGN.md`, app shell and drawers stay dark; React Flow `colorMode="light"`)
 
-- [x] 2026-10-03 — DXF geometry V6 baseline: added the DITL-00 DXF symbol reference under `public/symbol-library/DITL-00.dxf` plus `src/lib/symbol-library/ditl00-symbols.ts`; native DXF geometry remains the source of truth for node placement and wire paths; common-signal routing uses shared net/junction geometry; gate ports use native terminal anchors; hover behavior no longer dims/hides wires; live-signal rendering keeps animated flow while using a red live-state highlight.
-- [x] 2026-10-03 — Geometry regression set defined: use DITL-02, DITL-03A and DITL-13 as the primary visual regression sheets for row alignment, overlapping terminals, gate placement, port attachment, trunk/fan-out behavior, junctions and wire continuity.
-
 ## Next
 - [ ] Wire readability: hop at non-connected crossings, net labels (e.g. M.0514, TR252) for very long wires
 - [ ] TO column as clickable link to the target sheet (ties into "Link sheets by tag")
@@ -63,22 +60,3 @@ Update this file after every change.
 - [ ] Use symbol library in the Import parser to assign block types
 - [ ] Persistence — decide on backend (e.g. Lovable Cloud) when real data arrives
 
-
-
-## Current DXF geometry rules
-- Native DXF coordinates are the source of truth for sheet placement; do not introduce a second auto-layout for imported sheets.
-- Native DXF wire segments should be preserved and rendered as continuous orthogonal paths where possible.
-- A shared signal/net should be represented by one physical trunk with junction points for branches, rather than duplicated overlapping edges.
-- Gate input/output ports should anchor to the detected DXF terminal/contact coordinates; generated bridge segments are only a fallback for small rendering gaps.
-- DITL-00 is the reference symbol sheet for gate geometry/signatures (AND, OR, NOT, TON/TOF/TP, SR and related symbols).
-- ReactFlow UI boxes are presentation wrappers around drawing anchors; their dimensions must not redefine the imported drawing geometry.
-- Known remaining validation targets: terminal-card overlap in dense rows, exact gate placement on all sheets, port contact alignment, non-connected crossings, and long-wire continuity.
-
-
-## V8 Stable Geometry Baseline (2026-10-03)
-- Rebased the geometry/import pipeline to the last known-good V6.1 state after V7.x introduced renderer/edge regressions.
-- Native DXF `edgePaths` remain the single physical-wire source; do not replace them with a second net-path architecture.
-- Imported node positions continue to come from parsed DXF anchors; no sheet-specific coordinates are hardcoded.
-- `DITL-03A` is the primary regression sheet before applying any further geometry change.
-- `DITL-02` and `DITL-13` remain secondary regression sheets.
-- UI behavior retained: gate port IDs hidden, live wires red and animated, hover must not hide/dim wires.

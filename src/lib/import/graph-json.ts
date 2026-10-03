@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { LogicEdge, LogicGraph, LogicNode, LogicNodeType, LogicParamValue, LogicPort, LogicPoint, ImportedGeometry } from "@/lib/logic-graph/types";
+import type { LogicEdge, LogicGraph, LogicNode, LogicNodeType, LogicParamValue, LogicPort } from "@/lib/logic-graph/types";
 import type { ReviewItem } from "@/lib/review/review-store";
 import sampleJson from "./samples/ditl-03a.graph.json";
 
@@ -29,11 +29,6 @@ const schema = z.object({
         confidence: z.number().min(0).max(1).default(1),
         needsReview: z.boolean().default(false),
         pos: z.object({ x: z.number(), y: z.number() }).optional(),
-        geometry: z.object({
-          width: z.number().positive(),
-          height: z.number().positive(),
-          ports: z.record(z.string(), z.object({ side: z.enum(["L", "R"]), y: z.number().min(0).max(1) })).optional(),
-        }).optional(),
       }),
     )
     .max(2000),
@@ -45,15 +40,6 @@ const schema = z.object({
       }),
     )
     .max(10000),
-  geometry: z
-    .object({
-      source: z.literal("DXF"),
-      edgePaths: z.record(
-        z.string(),
-        z.array(z.object({ x: z.number(), y: z.number() })),
-      ),
-    })
-    .optional(),
 });
 
 const bool = (id: string, name: string): LogicPort => ({ id, name, dataType: "bool" });
@@ -118,13 +104,10 @@ function mapNode(type: string, params: Record<string, LogicParamValue>, ports: {
 }
 
 /** Sizes in canvas units. They must match logic-node.tsx. */
-export const TERMINAL_W = 340;
+export const TERMINAL_W = 420;
 /** Minimum terminal height; taller when the tag/description needs more lines. */
 export const TERMINAL_H = 48;
 export const GATE_W = 88;
-/** Native DXF symbols can be narrower/wider than the fallback gate box. */
-export const MIN_NATIVE_GATE_W = 34;
-export const MAX_NATIVE_GATE_W = 128;
 const GATE_HEADER = 28;
 const PORT_ROW = 20;
 const GATE_PAD = 8;
@@ -134,7 +117,7 @@ const TERM_PAD_Y = 12;
 /** Characters per wrapped line. Deliberately conservative so the whole text always fits. */
 const TERM_CHARS = 24;
 /** Draw AND / OR / NOT as logic gate symbols (set to false to go back to plain boxes). */
-export const SHOW_GATE_SYMBOLS = true;
+export const SHOW_GATE_SYMBOLS = false;
 /** Vertical space per input port on a gate symbol (about one signal row, so wires run straight in). */
 const SYMBOL_PITCH = 66;
 export const isSymbolGate = (n: { type: string }) => SHOW_GATE_SYMBOLS && ["AND", "OR", "NOT"].includes(n.type);
@@ -155,15 +138,14 @@ export function terminalText(n: LogicNode) {
 }
 
 /** Every input/output box has the same size; the text wraps inside (tag + address line, then the description). */
-export function terminalHeight(n?: LogicNode): number {
-  if (n?.geometry?.height) return Math.max(26, n.geometry.height);
+export function terminalHeight(_n?: LogicNode): number {
   return TERMINAL_H;
 }
 
 export const nodeHeight = (n: LogicNode) => {
   if (isTerminal(n)) return terminalHeight(n);
-  if (n.geometry?.height) return Math.max(44, n.geometry.height * (isSymbolGate(n) ? 1 : 1));
   if (isSymbolGate(n)) return Math.max(2, n.inputs.length + 1) * 28;
+  // Compact gate box: type name in the middle, one 20 px slot per port.
   return Math.max(44, Math.max(n.inputs.length, n.outputs.length, 1) * 20 + 12);
 };
 
@@ -349,7 +331,6 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
       outputs: m.outputs,
       confidence: m.forceReview ? Math.min(rn.confidence, 0.3) : rn.confidence,
       needsReview: rn.needsReview || !!m.forceReview,
-      ...(rn.geometry ? { geometry: rn.geometry } : {}),
     };
   });
 
@@ -364,70 +345,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     });
   });
 
-  let geometry: ImportedGeometry | undefined;
-  const rawGeometry = parsed.data.geometry;
-  if (rawGeometry && Object.keys(rawGeometry.edgePaths).length && drawX.size === nodes.length && drawY.size === nodes.length) {
-    // Keep the DXF's relative geometry. Do not run layoutSheet(), gap compression, or column reflow on imported drawings.
-    const xs = nodes.map((n) => drawX.get(n.id)!);
-    const ys = nodes.map((n) => drawY.get(n.id)!);
-    const edgePoints = Object.values(rawGeometry.edgePaths).flat();
-    const allX = [...xs, ...edgePoints.map((p) => p.x)];
-    const allY = [...ys, ...edgePoints.map((p) => p.y)];
-    const minX = Math.min(...allX);
-    const maxY = Math.max(...allY);
-    // Preserve drawing proportions. Scale is derived from the actual signal-row spacing
-    // so imported rows do not collapse into overlapping ReactFlow nodes.
-    const terminalNodes = nodes.filter((n) => n.type === "DI" || n.type === "DO");
-    const terminalYs = terminalNodes.map((n) => drawY.get(n.id)!).sort((a, b) => b - a);
-    const gaps = terminalYs.map((v, i) => i ? Math.abs(terminalYs[i - 1] - v) : Infinity)
-      .filter((v) => Number.isFinite(v) && v > 0.5);
-    const medianGap = gaps.length ? [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 10;
-    const SCALE = Math.max(2.2, Math.min(4.5, 62 / Math.max(1, medianGap)));
-
-    // Terminal centers remain tied to the DXF. Only the card height is allowed to shrink
-    // so two rows can never visually overlap. This preserves the wire centerline exactly.
-    const rowGapPx = new Map<string, number>();
-    for (const n of terminalNodes) {
-      const y0 = drawY.get(n.id)!;
-      let nearest = Infinity;
-      for (const m of terminalNodes) {
-        if (m.id === n.id) continue;
-        const d = Math.abs(y0 - drawY.get(m.id)!);
-        if (d > 0.5 && d < nearest) nearest = d;
-      }
-      const drawingGapPx = Number.isFinite(nearest) ? nearest * SCALE : medianGap * SCALE;
-      rowGapPx.set(n.id, Math.max(28, Math.min(44, drawingGapPx * 0.78)));
-    }
-
-    for (const n of nodes) {
-      const dx = drawX.get(n.id)!;
-      const dy = drawY.get(n.id)!;
-      const x = (dx - minX) * SCALE;
-      const y = (maxY - dy) * SCALE;
-      const importedTerminalH = rowGapPx.get(n.id);
-      const nativeW = n.geometry ? Math.max(MIN_NATIVE_GATE_W, Math.min(MAX_NATIVE_GATE_W, n.geometry.width * SCALE)) : GATE_W;
-      const nativeH = n.geometry ? Math.max(30, n.geometry.height * SCALE) : nodeHeight(n);
-      const h = isTerminal(n) ? (importedTerminalH ?? terminalHeight(n)) : nativeH;
-      if (isTerminal(n)) {
-        // Store the calibrated height so LogicNodeView and ReactFlow use the same box.
-        n.geometry = { ...(n.geometry ?? { width: TERMINAL_W, height: h }), width: TERMINAL_W, height: h };
-      } else if (n.geometry) {
-        // Preserve the native symbol aspect/size instead of forcing every gate into 88px.
-        n.geometry = { ...n.geometry, width: nativeW, height: h };
-      }
-      // Parser positions are drawing anchors/centers. ReactFlow positions are top-left coordinates.
-      if (n.type === "DI") n.position = { x: x - TERMINAL_W, y: y - h / 2 };
-      else if (n.type === "DO") n.position = { x, y: y - h / 2 };
-      else n.position = { x: x - nativeW / 2, y: y - h / 2 };
-    }
-    const edgePaths: Record<string, LogicPoint[]> = {};
-    for (const [id, pts] of Object.entries(rawGeometry.edgePaths)) {
-      edgePaths[id] = pts.map((p) => ({ x: (p.x - minX) * SCALE, y: (maxY - p.y) * SCALE }));
-    }
-    geometry = { source: "DXF", edgePaths };
-  } else {
-    layout(nodes, edges, drawY, drawX);
-  }
+  layout(nodes, edges, drawY, drawX);
 
   const items: ReviewItem[] = nodes
     .filter((n) => n.needsReview)
@@ -442,7 +360,7 @@ export function convertGraphJson(input: unknown, name = "Graph JSON"): GraphJson
     }));
 
   const safeName = stripNonEnglish(name) || "Graph JSON";
-  return { graph: { id: "json-import", name: safeName, nodes, edges, ...(geometry ? { geometry } : {}) }, items };
+  return { graph: { id: "json-import", name: safeName, nodes, edges }, items };
 }
 
 export const SAMPLE_GRAPH_JSON = JSON.stringify(sampleJson, null, 2);

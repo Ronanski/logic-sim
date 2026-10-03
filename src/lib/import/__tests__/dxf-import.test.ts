@@ -44,7 +44,6 @@ describe("DXF import", () => {
     const { graph } = load("_8_DITL-03A.dxf");
     eq((graph.nodes.filter((n) => n.type === "DI")).length, 21);
     eq((graph.nodes.filter((n) => n.type === "TP")).length, 1);
-    eq(!!graph.geometry && Object.keys(graph.geometry.edgePaths).length > 0, true);
   });
 
   it("DITL-13: PULSE DELAY is recognised as TP, OFF DELAY as TOF, no unknown labels", () => {
